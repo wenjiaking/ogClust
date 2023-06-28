@@ -10,7 +10,7 @@ There are two platforms in this GEO dataset and this data contains the platform 
 a list of four components.
 \itemize{
 \item{outcome: }{outcome (FEV1) of 331 samples}
-\item{Expression: }{Expression matrix with 331 samples(Col) and 12958 genes(rows)}
+\item{Expression: }{Expression matrix with 331 samples(Cols) and 12958 genes(Rows)}
 \item{Covariates: }{age and gender for 331 samples}
 \item{label: }{Diagosis for 331 samples, either COPD or ILD}
 }

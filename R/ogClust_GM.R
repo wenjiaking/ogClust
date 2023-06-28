@@ -40,7 +40,6 @@
 #'  \item{\code{AIC}}{AIC}
 #'  \item{\code{BIC}}{BIC}
 #'  \item{\code{lambda}}{lambda}
-#'  \item{\code{prob}}{ predicted probability for belonging to each subgroup}
 #'  \item{\code{Y_prd}}{ predicted outcome}
 #'  \item{\code{grp_assign}}{ prediced group assignement}
 #' }
@@ -50,13 +49,21 @@
 #' @importFrom stats median
 #'
 #' @examples
+#' \dontrun{
 #'   data('GSE47460_GPL14550') #load lung dataset
 #'
-#'   # extract gene expression G, covariate X, survival time Y
-#'   G=t(GSE47460_GPL14550$Expression)
+#'   # extract gene expression G, covariate X, outcome Y
+#'   G=GSE47460_GPL14550$Expression
 #'   X=GSE47460_GPL14550$Covariates
 #'   Y=GSE47460_GPL14550$outcome
-#'
+#'   g.mean<-apply(G,1,mean)
+#'   cut.mean=quantile(g.mean,probs=0.5)
+#'   G=G[g.mean>cut.mean,] # remove 50% lowest mean expression genes
+#'   g.sd=apply(G,1, sd)
+#'   cut.sd=quantile(g.sd,probs=0.5)
+#'   G=G[g.sd>=cut.sd,] # further remove 50% lowest variance genes
+#'   G<-t(G)
+#'   G<-scale(G)
 #'   # number of subjects
 #'   n=nrow(G)
 #'   # number of genes
@@ -66,7 +73,7 @@
 #'   # number of clusters
 #'   K=3
 #'   # tuning parameter
-#'   lambda=0.13
+#'   lambda=0.001
 #'
 #'   # set initial values
 #'   beta_int = runif(np, 0, 3)
@@ -75,18 +82,11 @@
 #'   sigma2_int = runif(1, 1, 3)
 #'   theta_int = c(beta_int, gamma_int, beta0_int, sigma2_int)
 #'
-#'   # fit ogClust, robust is FALSE
+#'   # fit ogClust
 #'   fit.res<-ogClust_GM(n=n, K=K, np=np, NG=NG, lambda=lambda,
-#'                     alpha=0.5, G=G, Y=Y, X=X,theta_int=theta_int)
-#'   # fit ogClust, robust method is median-truncation
-#'   fit.res2<-ogClust_GM(n=n, K=K, np=np, NG=NG, lambda=lambda,
-#'                      alpha=0.5, G=G, Y=Y, X=X,theta_int=theta_int,robust = 'median')
-#'   # fit ogClust, robust method is Huber
-#'   fit.res3<-ogClust_GM(n=n, K=K, np=np, NG=NG, lambda=lambda,
-#'                      alpha=0.5, G=G, Y=Y, X=X,theta_int=theta_int, robust ='huber',tau=4.345)
-#'   # fit ogClust, robust method is adaptive Huber
-#'   fit.res4<-ogClust_GM(n=n, K=K, np=np, NG=NG, lambda=lambda,
-#'                      alpha=0.5, G=G, Y=Y, X=X,theta_int=theta_int, robust='hubertf')
+#'                     alpha=1, G=G, Y=Y, X=X,theta_int=theta_int)
+#'}
+
 ogClust_GM <- function(n, K, np, NG, lambda, alpha, G, Y, X, theta_int, robust = "none", tau = 1.345) {
   stopifnot(robust %in% c("none", "huber", "median", "hubertf"))
   if (class(G)[1] != "matrix")

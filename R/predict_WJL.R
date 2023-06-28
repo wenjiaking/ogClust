@@ -16,42 +16,43 @@
 #'
 #' @examples
 #' \dontrun{
+#' data('GSE47460_GPL14550') #load lung dataset
+#' X<-GSE47460_GPL14550$Covariates
+#' G<-GSE47460_GPL14550$Expression
+#' Y<-GSE47460_GPL14550$outcome
+#'
+#'   g.mean<-apply(G,1,mean)
+#'   cut.mean=quantile(g.mean,probs=0.5)
+#'   G=G[g.mean>cut.mean,] # remove 50% lowest mean expression genes
+#'   g.sd=apply(G,1, sd)
+#'   cut.sd=quantile(g.sd,probs=0.5)
+#'   G=G[g.sd>=cut.sd,] # further remove 50% lowest variance genes
+#'   G<-t(G)
+#'   G<-scale(G)
+#' #initialize cluster centers:
+#' mod.kmeans<-kmeans(G,centers = 3,nstart = 50)
+#' center<-matrix(NA,nrow=ncol(G),ncol=3)
+#' center[,1]<-apply(G[which(mod.kmeans[[20]]$Cs==1),],2,mean)
+#' center[,2]<-apply(G[which(mod.kmeans[[20]]$Cs==2),],2,mean)
+#' center[,3]<-apply(G[which(mod.kmeans[[20]]$Cs==3),],2,mean)
 #' #input the weight and lambda
 #' s_G<-200
 #' w<-0.727
 #' w<-(s_G*w)/(s_G*w+1-w)
 #' lambda<-8
-#'
-#' #------------------------select top 2000 genes using marginal screening
-#' t.stat<-rep(NA,nrow(GSE47460_GPL6480$expression))
-#' for(i in 1:nrow(GSE47460_GPL6480$expression)){
-#'  data<-data.frame(y=GSE47460_GPL6480$outcome,x=GSE47460_GPL6480$expression[i,])
-#'  mod<-lm(y ~ x, data = data)
-#'  mod<-summary(mod)
-#'  t.stat[i]<-mod$coefficients[2,3]
-#'}
-#'Index<-order(abs(t.stat),decreasing = T)
-#'x<-GSE47460_GPL6480$covariates
-#'G<-GSE47460_GPL6480$expression[Index[1:2000],]
-#'y<-GSE47460_GPL6480$outcome
-#'
-#'#get the intial cluster center
-#'mod.kmeans<-kmeans(t(G),centers = 3,nstart = 20)
-#'center<-t(mod.kmeans$centers)
-#'x<-as.matrix(x)
-#'
-#'#implement ogClust
-#'mod = ogClust(x=x,G=G,y=y,c_center=center,
+#' #implement ogClust_WJL
+#' fit.res = ogClust_WJL(x=as.matrix(X),G=t(G),y=Y,c_center=center,
 #'              lambda=lambda,v_int=NULL,pi_int=NULL,K=3,max_iter=200,w_outcome=w,w_G=1-w,z_int=NULL)
 #' #predict for the validation data
-#' G.test<-GSE47460_GPL14550$expression
-#' X.test<-GSE47460_GPL14550$covariates
-#' index<-match(rownames(G),rownames(G.test))
-#' G.test<-G.test[index,]
-#' mod.predict<-predict_test(mod,K = 3,D.test =t(G.test),X1 =X.test, p = nrow(G))
+#' data('GSE47460_GPL6480')
+#' G.test<-t(GSE47460_GPL6480$Expression)
+#' X.test<-GSE47460_GPL6480$Covariates
+#' index<-match(colnames(G),colnames(G.test))
+#' G.test<-G.test[,index]
+#' mod.predict<-predict_WJL(fit.res,K = 3,D.test =G.test,X1 =X.test, p = ncol(G.test))
 #'}
 
-predict_test<-function(mod,K,D.test,X1,p=p){
+predict_WJL<-function(mod,K,D.test,X1,p=p){
   mult_density1<-function(x,mu,sigma){
     lik<-dnorm(x,mean=mu,sd=sqrt(sigma),log=TRUE)
     return(lik)

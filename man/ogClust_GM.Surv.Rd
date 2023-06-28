@@ -53,7 +53,6 @@ An object with class \code{"ogClust"}
 \item{\code{AIC}}{AIC}
 \item{\code{BIC}}{BIC}
 \item{\code{lambda}}{lambda}
-\item{\code{prob}}{ predicted probability for belonging to each subgroup}
 \item{\code{Y_prd}}{ predicted outcome}
 \item{\code{grp_assign}}{ prediced group assignement}
 }
@@ -74,4 +73,41 @@ Parameter \code{lambda} is the penalty tuning parameter, and \code{alpha} tunes 
 Time variable \code{Y} and censoring indicator \code{delta} together defines a single time-to-event outcome.
 We use accelerated-failure time(AFT) model to model time-to-event outcome, \code{dist} defines
 the distribution of survival time.
+}
+\examples{
+\dontrun{
+  data('Data.Metabric') #load lung dataset
+
+  # extract gene expression G, covariate X, outcome Y
+  G=Data.Metabric$Expression
+  X=as.matrix(Data.Metabric$covariate[,1])
+  Y=Data.Metabric$OS
+  delta<-Data.Metabric$OS.event
+  Index.Mean<-order(apply(G,2,mean),decreasing = T)
+  G <- G[,Index.Mean[1:(ncol(G)/2)]]
+  Index.Sd<-order(apply(G,2,sd),decreasing = T)
+  G<-G[,Index.Sd[1:(ncol(G)/2)]]
+  G<-scale(G)
+  # number of subjects
+  n=nrow(G)
+  # number of genes
+  NG=ncol(G)
+  # number of covariates
+  np=ncol(X)
+  # number of clusters
+  K=2
+  # tuning parameter
+  lambda=0.007
+
+  # set initial values
+  beta_int = runif(np, 0, 3)
+  gamma_int = runif((K - 1) * (NG + 1), 0, 1)
+  beta0_int = runif(K, 0, 3)
+  sigma2_int = runif(1, 1, 3)
+  theta_int = c(beta_int, gamma_int, beta0_int, sigma2_int)
+
+  # fit ogClust
+  fit.res<-ogClust_GM.Surv(n=n, K=K, np=np, NG=NG, lambda=lambda,delta = delta,
+  alpha=1, G=G, Y=Y, X=X, theta_int=theta_int)
+}
 }

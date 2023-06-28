@@ -67,32 +67,29 @@ ogClust_WJL mehtod to cluster with continuous outcome
 }
 \examples{
 \dontrun{
+data('GSE47460_GPL14550') #load lung dataset
+X<-GSE47460_GPL14550$Covariates
+G<-GSE47460_GPL14550$Expression
+Y<-GSE47460_GPL14550$outcome
+
+  g.mean<-apply(G,1,mean)
+  cut.mean=quantile(g.mean,probs=0.5)
+  G=G[g.mean>cut.mean,] # remove 50\% lowest mean expression genes
+  g.sd=apply(G,1, sd)
+  cut.sd=quantile(g.sd,probs=0.5)
+  G=G[g.sd>=cut.sd,] # further remove 50\% lowest variance genes
+  G<-t(G)
+  G<-scale(G)
+#initialize cluster centers:
+mod.kmeans<-kmeans(G,centers = 3,nstart = 50)
+center<-t(mod.kmeans$centers)
 #input the weight and lambda
 s_G<-200
 w<-0.727
 w<-(s_G*w)/(s_G*w+1-w)
 lambda<-8
-
-#------------------------select top 2000 genes using marginal screening
-t.stat<-rep(NA,nrow(GSE47460_GPL6480$expression))
-for(i in 1:nrow(GSE47460_GPL6480$expression)){
- data<-data.frame(y=GSE47460_GPL6480$outcome,x=GSE47460_GPL6480$expression[i,])
- mod<-lm(y ~ x, data = data)
- mod<-summary(mod)
- t.stat[i]<-mod$coefficients[2,3]
-}
-Index<-order(abs(t.stat),decreasing = T)
-x<-GSE47460_GPL6480$covariates
-G<-GSE47460_GPL6480$expression[Index[1:2000],]
-y<-GSE47460_GPL6480$outcome
-
-#get the intial cluster center
-mod.kmeans<-kmeans(t(G),centers = 3,nstart = 20)
-center<-t(mod.kmeans$centers)
-x<-as.matrix(x)
-
-#implement ogClust
-mod = ogClust_WJL(x=x,G=G,y=y,c_center=center,
+#implement ogClust_WJL
+fit.res = ogClust_WJL(x=as.matrix(X),G=t(G),y=Y,c_center=center,
              lambda=lambda,v_int=NULL,pi_int=NULL,K=3,max_iter=200,w_outcome=w,w_G=1-w,z_int=NULL)
 }
 }

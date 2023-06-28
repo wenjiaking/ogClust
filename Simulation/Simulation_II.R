@@ -1,4 +1,4 @@
-rm(list=ls()) 
+rm(list=ls())
 library(sparcl) #to implement sparse K means
 library(adaHuber)
 library(parallel)
@@ -13,45 +13,7 @@ library(survival)
 library(tibble)
 library(dplyr)
 
-Sim_surv<-function(n,beta1,beta2,q,q1,q2,q3,c1,var_g,mu,mu1,sigma_y,censor){
-  #simulatex
-  x1<-rnorm(n,1,0.5)
-  x2<-rnorm(n,1,0.5)
-  x<-cbind(x1,x2)
-  #simulate y
-  y<-rep(NA,n)
-  y[1:(n/3)]<-0+beta1*x1[1:(n/3)]+beta2*x2[1:(n/3)]+rlogis(n/3, location = 0, scale = 1)*sigma_y
-  y[(n/3+1):(2*n/3)]<-c1+beta1*x1[(n/3+1):(2*n/3)]+beta2*x2[(n/3+1):(2*n/3)]+rlogis(n/3, location = 0, scale = 1)*sigma_y
-  y[(2*n/3+1):n]<-2*c1+beta1*x1[(2*n/3+1):(n)]+beta2*x2[(2*n/3+1):(n)]+rlogis(n/3, location = 0, scale = 1)*sigma_y
-  y<-exp(y)
-  y.ind<-ifelse(y>censor,0,1)
-  y<-ifelse(y>censor,censor,y)
-  X1 = rbind(matrix(rnorm((n/3) * q), ncol = q),
-             matrix(rnorm((n/3) * q), ncol = q),
-             matrix(rnorm((n/3) * q), ncol = q))
-  X2 = rbind(matrix(rnorm((n/3) * q1), ncol = q1),
-             matrix(rnorm((n/3) * q1), ncol = q1),
-             matrix(rnorm((n/3) * q1), ncol = q1))
-  X3 = rbind(matrix(rnorm((n/3) * q2), ncol = q2),
-             matrix(rnorm((n/3) * q2), ncol = q2),
-             matrix(rnorm((n/3) * q2), ncol = q2))
-  X.noise = rbind(matrix(rnorm((n/3) * q3), ncol = q3),
-                  matrix(rnorm((n/3) * q3), ncol = q3),
-                  matrix(rnorm((n/3) * q3), ncol = q3))
-  X1[1:(n/3), 1:q] <- X1[1:(n/3), 1:q] - mu
-  X1[(n/3+1):(2*n/3), 1:q] <- X1[(n/3+1):(2*n/3), 1:q]
-  X1[(2*n/3+1):n, 1:q] <- X1[(2*n/3+1):n, 1:q] + mu
-  index<-sample(1:n)
-  X2[index[1:(n/3)], ] <- X2[index[1:(n/3)],]-mu1
-  X2[index[(n/3+1):(2*n/3)], ] <- X2[index[(n/3+1):(2*n/3)], ]
-  X2[index[(2*n/3+1):n], ] <- X2[index[(2*n/3+1):n], ]+mu1
-  for(i in 1:ncol(X3)){
-    X3[,i]<-X3[,i]+rnorm(1,0,var_g)*x1
-  }
-  X<-cbind(X1,X2,X3,X.noise)
-  data<-list(x=x,y=y,y.ind=y.ind,G=X)
-  return(data)
-}
+source("Functions.R")
 
 n<-99
 q<-50
@@ -87,7 +49,7 @@ for (ind_mu in 1:length(mu_vector)) {
 
 
 resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vector_all=c(2)) {
-  
+
   for(ind_c1 in 1:length(c1_vector_all)) {
     c1<-c1_vector_all[ind_c1]
     for (ind_mu in 1:length(mu_vector)) {
@@ -118,7 +80,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         delta.test<-delta[index.test]
         label.train<-true.label[index.train]
         label.test<-true.label[index.test] #1/3 samples for testing and 2/3 for training
-        
+
         if (SC) {
           t.stat<-rep(NA,ncol(G.train))
           for(i in 1:ncol(G.train)){
@@ -132,7 +94,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           G.train<-G.train[,index]
           G.test<-G.test[,index]
         }
-        
+
         set.seed(12315)
         index.sample<-sample(rep(1:10,length.out=nrow(X.train)))
         #--------------------------------------------------
@@ -140,12 +102,12 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         #--------------------------------------------------
         mod.kmeans<-kmeans(G.train,center=K,nstart=50)
         center<-t(mod.kmeans$centers)
-        
+
         w_vector=seq(0,1,0.1)
         lambda_vector=seq(2,15,1)
         s_G<-50
         lambda_vector1<-seq(2,18,0.5)
-        
+
         start_time=Sys.time()
         temp.R2<-rep(NA,length(w_vector))
         for(ind_w in 1:length(w_vector)){
@@ -159,7 +121,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           }
           index<-which.min(abs(num.vector-50))
           lambda<-lambda_vector[index]
-          
+
           mod.all<-ogClust_Surv(x=X.train,G=t(G.train),y=Y.train,y.ind=delta.train,c_center=center,lambda=lambda,v_int=NULL,pi_int=NULL,K=K,max_iter=200,w_outcome=w,w_G=1-w)
           #cluster1<-predict.ogclust.test(mod.all,K=K,D.test=as.matrix(G.train),D.train=t(G.train),X1=X.train,p=ncol(G.train))
           cluster1<-predict_test(mod.all,K=K,D.test=as.matrix(G.train),X1=as.matrix(X.train),p=ncol(G.train))
@@ -171,9 +133,9 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           centers<-cbind(apply(G.train[which(cluster1==1),,drop=F],2,mean),
                          apply(G.train[which(cluster1==2),,drop=F],2,mean),
                          apply(G.train[which(cluster1==3),,drop=F],2,mean))
-          
+
           #print(table(cluster1))
-          
+
           cluster<-rep(NA,nrow(G.train))
           for(ind_cv in 1:length(unique(index.sample))){
             ind_sample<-which(index.sample==ind_cv)
@@ -185,7 +147,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             X.train1<-X.train[(1:nrow(X.train))[-ind_sample],]
             Y.train1<-Y.train[(1:nrow(X.train))[-ind_sample]]
             delta.train1<-delta.train[(1:nrow(X.train))[-ind_sample]]
-            
+
             label.test1<-label.train[ind_sample]
             label.train1<-label.train[(1:nrow(X.train))[-ind_sample]]
             num.vector<-rep(NA,length(lambda_vector))
@@ -193,14 +155,14 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
               mod<-ogClust_Surv(x=X.train1,G=t(G.train1),y=Y.train1,y.ind=delta.train1,c_center=center,lambda=lambda_vector[j],v_int=NULL,pi_int=NULL,K=K,max_iter=200,w_outcome=w_vector[ind_w],w_G=1-w_vector[ind_w])
               num.vector[j]<-sum(apply(mod$result_list$mu,1,function(x){length(unique(x))})!=1)
             }
-            
+
             index<-which.min(abs(num.vector-50))
             lambda<-lambda_vector[index]
             #temp.num[ind_w,ind_cv]<-num.vector[index]
             mod<-ogClust_Surv(x=X.train1,G=t(G.train1),y=Y.train1,y.ind=delta.train1,c_center=center,lambda=lambda,v_int=NULL,pi_int=NULL,K=K,max_iter=200,w_outcome=w,w_G=1-w)
             res1<-predict_test(mod,K=K,D.test=as.matrix(G.test1),X1=as.matrix(X.test1),p=ncol(G.test1))
             #res1<-predict.ogclust.test(mod,K=K,D.test=as.matrix(G.test1),D.train=t(G.train1),X1=X.test1,p=ncol(G.test1))
-            
+
             distance.ave<-apply(centers,2,function(x){
               distance<-apply(G.test1,1,function(y){
                 sqrt(sum((x-y)^2))
@@ -213,7 +175,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             })
             rownames(distance.ave)<-paste("cluster",1:K)
             colnames(distance.ave)<-paste("center",1:K)
-            
+
             cluster.index<-list()
             index1<-c()
             for(i in 1:K){
@@ -226,7 +188,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
               }
             }
             cluster[ind_sample]<-res1$clus
-            
+
           }
           data1<-data.frame(cluster=cluster,Y=Y.train,Y.ind=delta.train,x1=X.train[,1],x2=X.train[,2])
           mod.cox1<-coxph(Surv(Y, Y.ind) ~ as.factor(cluster)+x1+x2, data = data1)
@@ -237,11 +199,11 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         index<-which.max(temp.R2)
         end_time=Sys.time()
         tune_time=as_hms(end_time-start_time)
-        
+
         w0<-w_vector[index]
         w<-(s_G*w0)/(s_G*w0+1-w0)
         print(paste0("Tuning w0=",w0," consumed time  ",tune_time))
-        
+
         R2.outcome.tune<-rep(NA,length(lambda_vector1))
         num.vector<-rep(NA,length(lambda_vector1))
         R2.gene.tune<-rep(NA,length(lambda_vector1))
@@ -249,21 +211,21 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           mod<-ogClust_Surv(x=X.train,G=t(G.train),y=Y.train,y.ind=delta.train,c_center=center,lambda=lambda_vector1[j],v_int=NULL,pi_int=NULL,K=K,max_iter=200,w_outcome=w,w_G=1-w)
           select.feature<-as.numeric(apply(mod$result_list$mu,1,function(x){length(unique(x))})!=1)
           num.vector[j]<-sum(select.feature==1)
-          
+
           cluster1<-predict_test(mod,K=K,D.test=as.matrix(G.train),X1=as.matrix(X.train),p=ncol(G.train))
           cluster1<-cluster1$clus
-          
+
           if(length(table(cluster1))!=K){
             R2.outcome.tune[j]=NA
             R2.gene.tune[j]=NA
             next
           }
-          
+
           centers<-cbind(apply(G.train[which(cluster1==1),,drop=F],2,mean),
                          apply(G.train[which(cluster1==2),,drop=F],2,mean),
                          apply(G.train[which(cluster1==3),,drop=F],2,mean))
-          
-          
+
+
           cluster<-rep(NA,nrow(G.train))
           for(ind_cv in 1:length(unique(index.sample))){
             ind_sample<-which(index.sample==ind_cv)
@@ -275,11 +237,11 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             G.train11<-G.train[(1:nrow(G.train))[-ind_sample],]
             X.train1<-X.train[(1:nrow(G.train))[-ind_sample],]
             Y.train1<-Y.train[(1:nrow(G.train))[-ind_sample]]
-            
+
             mod<-ogClust_Surv(x=X.train1,G=t(G.train11),y=Y.train1,y.ind=delta.train1,c_center=center,lambda=lambda,v_int=NULL,pi_int=NULL,K=3,max_iter=200,w_outcome=w,w_G=1-w,z_int=NULL)
-            
+
             res1<-predict_test(mod,K=K,D.test=as.matrix(G.test11),X1=as.matrix(X.test1),p=ncol(G.test11))
-            
+
             distance.ave<-apply(centers,2,function(x){
               distance<-apply(G.test11,1,function(y){
                 sqrt(sum((x-y)^2))
@@ -292,7 +254,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             })
             rownames(distance.ave)<-paste("cluster",1:K)
             colnames(distance.ave)<-paste("center",1:K)
-            
+
             cluster.index<-list()
             index1<-c()
             for(i in 1:K){
@@ -305,15 +267,15 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
               }
             }
             cluster[ind_sample]<-res1$clus
-            
+
           }
-          
+
           data1<-data.frame(cluster=cluster,Y=Y.train,Y.ind=delta.train,x1=X.train[,1],x2=X.train[,2])
           mod.cox1<-coxph(Surv(Y, Y.ind) ~ as.factor(cluster)+x1+x2, data = data1)
           mod.cox2<-coxph(Surv(Y, Y.ind) ~ x2+x2, data = data1)
           mod.anova<-anova(mod.cox1,mod.cox2)
           R2.outcome.tune[j]<-mod.anova$Chisq[2]
-          
+
           Fstat.gene<-c()
           for(i in 1:ncol(G.train)){
             data1<-data.frame(gene=G.train[,i],cluster=as.factor(cluster))
@@ -324,48 +286,48 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           Fstat.gene<-mean(Fstat.gene[which(select.feature==1)])
           R2.gene.tune[j]<-Fstat.gene
         }
-        
+
         #---------------------------------------------
         #use criteria sqrt(R2.outcome.tune*R2.gene.tune) to tune lambda
         #---------------------------------------------
         index<-which.max(sqrt(R2.outcome.tune*R2.gene.tune))
         lambda=lambda_vector1[index]
         print(paste0("By sqrt(R2.outcome*R2.gene) criteria, lambda=",lambda," that selects  ",num.vector[index]," features."))
-        
+
         mod.tune<-ogClust_Surv(x=X.train,G=t(G.train),y=Y.train,y.ind=delta.train,c_center=center,lambda=lambda,v_int=NULL,pi_int=NULL,K=K,max_iter=200,w_outcome=w,w_G=1-w)
         select.feature<-as.numeric(apply(mod.tune$result_list$mu,1,function(x){length(unique(x))})>1)
         num.WJL.tune=sum(select.feature)
-        
+
         res.test.tune<-predict_test(mod.tune,K=K,D.test=G.test,X1=as.matrix(X.test),p=ncol(G.test))
         res.train.tune<-predict.ogclust.test.select(mod.tune,K=K,D.test=as.matrix(G.train),D.train=t(G.train),X1=as.matrix(X.train),p=ncol(G.train),s_G = s_G,O.test = Y.train,w = w)
-        
+
         cluster.test<-res.test.tune$clus
         cluster.train = res.train.tune$clus
-        
+
         ari.test.WJL.tune<-adjustedRandIndex(cluster.test,label.test)
         ari.train.WJL.tune<-adjustedRandIndex(cluster.train,label.train)
-        
+
         data1<-data.frame(cluster=cluster.train,Y=Y.train,Y.ind=delta.train,x1=X.train[,1],x2=X.train[,2])
         #library(survival)
         mod.cox1<-coxph(Surv(Y, Y.ind) ~ as.factor(cluster)+x1+x2, data = data1)
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.train.tune<-mod.anova$Chisq[2]
-        
+
         data1<-data.frame(cluster=cluster.test,Y=Y.test,Y.ind=delta.test,x1=X.test[,1],x2=X.test[,2])
         mod.cox1<-coxph(Surv(Y, Y.ind) ~ as.factor(cluster)+x1+x2, data = data1)
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.test.tune<-mod.anova$Chisq[2]
-        
+
         mod.train<-Rsquare(cluster =cluster.train,Y = Y.train,X = X.train,G = t(G.train))
         R2.gene.train.tune<-mean(mod.train$gene[which(select.feature==1)])
         mod.test<-Rsquare(cluster =cluster.test,Y = Y.test,X = X.test,G = t(G.test))
         R2.gene.test.tune<-mean(mod.test$gene[which(select.feature==1)])
-        
+
         cindex.train.WJL.tune.hard<-concordance.index(x=1/as.numeric(res.train.tune$Y.hard), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
         cindex.test.WJL.tune.hard<-concordance.index(x=1/as.numeric(res.test.tune$Y.hard), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-        
+
         cindex.train.random<-c()
         cindex.test.random<-c()
         cluster.test1<-cluster.test
@@ -377,78 +339,78 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           for(i in 1:K){
             intercept[which(cluster.train1==i)]<-mod.tune$result_list$int_coef[i]
           }
-          
+
           pred.train<-X.train %*% mod.tune$result_list$int_coef[4:5]+intercept
-          
+
           intercept<-rep(NA,nrow(X.test))
           for(i in 1:K){
             intercept[which(cluster.test1==i)]<-mod.tune$result_list$int_coef[i]
           }
-          
+
           pred.test<-X.test %*% mod.tune$result_list$int_coef[4:5]+intercept
-          
-          
+
+
           cindex.train.random[ind]<-concordance.index(x=1/as.numeric(pred.train), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
           cindex.test.random[ind]<-concordance.index(x=1/as.numeric(pred.test), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-          
+
         }
-        
+
         cindex.train.WJL.tune.adjust<-(cindex.train.WJL.tune.hard-mean(cindex.train.random))/(1-mean(cindex.train.random))
         cindex.test.WJL.tune.adjust<-(cindex.test.WJL.tune.hard-mean(cindex.test.random))/(1-mean(cindex.test.random))
-        
+
         jaccard.index.WJL.tune<-Jaccard.index(true.feature, select.feature)
-        
+
         #---------------------------------------------
         #use num to select lambda
         #---------------------------------------------
         index<-max(which(num.vector>=50))
         lambda.num<-lambda_vector1[index]
         print(paste0("Tuning lambda=",lambda.num," that selects  ",num.vector[index]," features."))
-        
+
         start_time=Sys.time()
         mod.num<-ogClust_Surv(x=X.train,G=t(G.train),y=Y.train,y.ind=delta.train,c_center=center,lambda=lambda.num,v_int=NULL,pi_int=NULL,K=K,max_iter=200,w_outcome=w,w_G=1-w,z_int=NULL)
         end_time=Sys.time()
         train_time=as_hms(end_time-start_time)
         time.WJL=as_hms(train_time+tune_time)
         #res.test<-predict.ogclust.test(mod.num,K=K,D.test=G.test,D.train=t(G.train),X1=X.test,p=ncol(G.test))
-        
+
         res.test<-predict_test(mod.num,K=K,D.test=G.test,X1=as.matrix(X.test),p=ncol(G.test))
         res.train<-predict.ogclust.test.select(mod.num,K=K,D.test=as.matrix(G.train),D.train=t(G.train),X1=X.train,p=ncol(G.train),s_G = s_G,O.test = Y.train,w = w)
-        
+
         cluster.test<-res.test$clus
         #cluster.train<-apply(mod.num$result_list$z,1,which.max)
         cluster.train = res.train$clus
-        
+
         ari.test.WJL.num<-adjustedRandIndex(cluster.test,label.test)
         ari.train.WJL.num<-adjustedRandIndex(cluster.train,label.train)
-        
-        
+
+
         select.feature<-as.numeric(apply(mod.num$result_list$mu,1,function(x){length(unique(x))})>1)
         num.WJL.num=sum(select.feature)
         jaccard.index.WJL.num<-Jaccard.index(true.feature, select.feature)
-        
+
         data1<-data.frame(cluster=cluster.train,Y=Y.train,Y.ind=delta.train,x1=X.train[,1],x2=X.train[,2])
         #library(survival)
         mod.cox1<-coxph(Surv(Y, Y.ind) ~ as.factor(cluster)+x1+x2, data = data1)
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.train.num<-mod.anova$Chisq[2]
-        
+
         data1<-data.frame(cluster=cluster.test,Y=Y.test,Y.ind=delta.test,x1=X.test[,1],x2=X.test[,2])
         mod.cox1<-coxph(Surv(Y, Y.ind) ~ as.factor(cluster)+x1+x2, data = data1)
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.test.num<-mod.anova$Chisq[2]
-        
+
         mod.train<-Rsquare(cluster =cluster.train,Y = Y.train,X = X.train,G = t(G.train))
         R2.gene.train.num<-mean(mod.train$gene[which(select.feature==1)])
         mod.test<-Rsquare(cluster =cluster.test,Y = Y.test,X = X.test,G = t(G.test))
         R2.gene.test.num<-mean(mod.test$gene[which(select.feature==1)])
-        
-        
+
+
         cindex.train.WJL.num.hard<-concordance.index(x=1/as.numeric(res.train$Y.hard), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
         cindex.test.WJL.num.hard<-concordance.index(x=1/as.numeric(res.test$Y.hard), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-        
+
         cindex.train.random<-c()
         cindex.test.random<-c()
         cluster.test1<-cluster.test
@@ -460,25 +422,25 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           for(i in 1:K){
             intercept[which(cluster.train1==i)]<-mod.num$result_list$int_coef[i]
           }
-          
+
           pred.train<-X.train %*% mod.num$result_list$int_coef[4:5]+intercept
-          
+
           intercept<-rep(NA,nrow(X.test))
           for(i in 1:K){
             intercept[which(cluster.test1==i)]<-mod.num$result_list$int_coef[i]
           }
-          
+
           pred.test<-X.test %*% mod.num$result_list$int_coef[4:5]+intercept
-          
-          
+
+
           cindex.train.random[ind]<-concordance.index(x=1/as.numeric(pred.train), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
           cindex.test.random[ind]<-concordance.index(x=1/as.numeric(pred.test), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-          
+
         }
-        
+
         cindex.train.WJL.num.adjust<-(cindex.train.WJL.num.hard-mean(cindex.train.random))/(1-mean(cindex.train.random))
         cindex.test.WJL.num.adjust<-(cindex.test.WJL.num.hard-mean(cindex.test.random))/(1-mean(cindex.test.random))
-        
+
         #-------------------------------------------------
         WJL.res<-list(mod.tune=mod.tune,mod.num=mod.num,
                       pred.train.tune=res.train.tune,pred.train.num=res.train,
@@ -512,39 +474,39 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         NG=ncol(G.train) # number of genes
         np=ncol(X.train) # number of covariates
         lambda_vector_Peng<-c(seq(0.005,0.01,0.001),seq(0.02,0.5,0.02))
-        
+
         mod.kmeans<-kmeans(G.train,centers = 3,nstart = 50)
         cluster<-mod.kmeans$cluster
-        
+
         index1<-which(cluster==1)
         data1<-data.frame(y=Y.train[index1],x1=X.train[index1,1],x2=X.train[index1,2])
         mod1<-lm(y~.,data=data1)
         mod1<-summary(mod1)
-        
+
         index2<-which(cluster==2)
         data2<-data.frame(y=Y.train[index2],x1=X.train[index2,1],x2=X.train[index2,2])
         mod2<-lm(y~.,data=data2)
         mod2<-summary(mod2)
-        
+
         index3<-which(cluster==3)
         data3<-data.frame(y=Y.train[index3],x1=X.train[index3,1],x2=X.train[index3,2])
         mod3<-lm(y~.,data=data3)
         mod3<-summary(mod3)
-        
+
         beta0_int = c(mod1$coefficients[1,1],mod2$coefficients[1,1],mod3$coefficients[1,1])
-        
+
         data<-data.frame(y=Y.train,X.train)
         mod<-lm(y~.,data=data)
         mod<-summary(mod)
         beta_int<-mod$coefficients[2:3,1]
         K<-3
-        
+
         mod<-glmnet(G.train,as.factor(cluster),family = "multinomial",lambda=0)
         mod1<-coef(mod)
         gamma_int<-c(as.numeric(mod1$`1`),as.numeric(mod1$`2`))
         sigma2_int<-1
         theta_int = c(beta_int, gamma_int, beta0_int, sigma2_int)
-        
+
         R2.outcome.tune<-rep(NA,length(lambda_vector_Peng))
         R2.gene.tune<-rep(NA,length(lambda_vector_Peng))
         num<-rep(NA,length(lambda_vector_Peng))
@@ -552,21 +514,21 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           #print(i)
           fit.res<-fit.ogClust.surv(n=n1, K=K, np=np, NG=NG, lambda=lambda_vector_Peng[ind_lambda],delta = delta.train,
                                     alpha=0.5,G=as.data.frame(G.train), Y=Y.train, X=X.train, theta_int=theta_int)
-          
+
           # theta_est<-fit.res$res
-          beta=fit.res$par$gamma 
+          beta=fit.res$par$gamma
           beta<-as.data.frame(beta)
           select.feature<-as.numeric(apply(beta,1,function(x){sum(x==0)})!=K)[-1] #genes with non-zero weight of at least one clsuter
           num[ind_lambda]<-sum(select.feature==1)
-          cluster1<-fit.res$grp_assign 
+          cluster1<-fit.res$grp_assign
           #print(table(cluster1))
-          
+
           if(length(table(cluster1))!=K){
             R2.outcome.tune[ind_lambda]<-NA
             R2.gene.tune[ind_lambda]<-NA
             next
           }
-          
+
           centers<-cbind(apply(G.train[which(cluster1==1),,drop=F],2,mean),
                          apply(G.train[which(cluster1==2),,drop=F],2,mean),
                          apply(G.train[which(cluster1==3),,drop=F],2,mean))
@@ -582,20 +544,20 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             G.train1<-G.train[(1:nrow(G.train))[-ind_sample],]
             X.train1<-X.train[(1:nrow(G.train))[-ind_sample],]
             Y.train1<-Y.train[(1:nrow(G.train))[-ind_sample]]
-            n1sub=nrow(G.train1) 
-            NGsub=ncol(G.train1) 
+            n1sub=nrow(G.train1)
+            NGsub=ncol(G.train1)
             np=ncol(X.train1)
             mod<-fit.ogClust.surv(n=n1sub, K=K, np=np, NG=NGsub, lambda=lambda_vector_Peng[ind_lambda],delta = delta.train1,
                                   alpha=0.5, G=as.data.frame(G.train1), Y=Y.train1, X=X.train1, theta_int=theta_int)
-            
-            
-            cluster1<-mod$grp_assign 
+
+
+            cluster1<-mod$grp_assign
             gamma_est_matrix=mod$par$gamma
-            
+
             G.test1.add = as.matrix(cbind(1, G.test1))
             pai_est.num = sapply(1:K, function(k) exp(G.test1.add %*% gamma_est_matrix[,  k, drop = F])/rowSums(exp(G.test1.add %*% gamma_est_matrix)))
-            cluster.test<-apply(pai_est.num,1,which.max) 
-            
+            cluster.test<-apply(pai_est.num,1,which.max)
+
             distance.ave<-apply(centers,2,function(x){
               distance<-apply(G.test1,1,function(y){
                 sqrt(sum((x-y)^2))
@@ -608,7 +570,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             })
             rownames(distance.ave)<-paste("cluster",1:K)
             colnames(distance.ave)<-paste("center",1:K)
-            
+
             cluster.index<-list()
             index1<-c()
             for(i in 1:K){
@@ -621,9 +583,9 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
               }
             }
             cluster[ind_sample]<-cluster.test
-            
+
           }
-          
+
           if(length(table(cluster))!=K){
             R2.outcome.tune[ind_lambda]<-NA
             R2.gene.tune[ind_lambda]<-NA
@@ -633,7 +595,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             mod.cox2<-coxph(Surv(Y, Y.ind) ~ x2+x2, data = data1)
             mod.anova<-anova(mod.cox1,mod.cox2)
             R2.outcome.tune[ind_lambda]<-mod.anova$Chisq[2]
-            
+
             Fstat.gene<-c()
             for(i in 1:ncol(G.train)){
               data1<-data.frame(gene=G.train[,i],cluster=as.factor(cluster))
@@ -645,7 +607,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             R2.gene.tune[ind_lambda]<-Fstat.gene
           }
         }
-        
+
         #---------------------------------------------
         #use criteria sqrt(R2.outcome.tune*R2.gene.tune) to tune lambda
         #---------------------------------------------
@@ -654,62 +616,62 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         index<-which.max(tune_metric)
         lambda=lambda_vector_Peng[index]
         print(paste0("By sqrt(R2.outcome*R2.gene) criteria, lambda=",lambda," that selects  ",num[index]," features."))
-        
+
         fit.res.tune<-fit.ogClust.surv(n=n1, K=K, np=np, NG=NG, lambda=lambda,delta = delta.train,
                                        alpha=0.5, G=as.data.frame(G.train), Y=Y.train, X=X.train, theta_int=theta_int)
-        
-        
-        beta=fit.res.tune$par$gamma 
+
+
+        beta=fit.res.tune$par$gamma
         beta<-as.data.frame(beta)
         select.feature<-as.numeric(apply(beta,1,function(x){sum(x==0)})!=K)[-1] #genes with non-zero weight of at least one clsuter
-        
+
         jaccard.index.Peng.tune<-Jaccard.index(true.feature, select.feature)
         num.Peng.tune<-sum(select.feature==1)
         ari.train.Peng.tune<-adjustedRandIndex(fit.res.tune$grp_assign,label.train)
-        
+
         data1<-data.frame(cluster=fit.res.tune$grp_assign,Y=Y.train,Y.ind=delta.train,x1=X.train[,1],x2=X.train[,2])
         mod.cox1<-coxph(Surv(Y, Y.ind) ~ as.factor(cluster)+x1+x2, data = data1)
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.train.tune<-mod.anova$Chisq[2]
-        
+
         beta_est=fit.res.tune$par$beta
         gamma_est_matrix=fit.res.tune$par$gamma
         beta0_est=fit.res.tune$par$beta0
         sigma2_est=fit.res.tune$par$sigma2
-        
+
         intercept<-rep(NA,nrow(X.train))
         for(i in 1:K){
           intercept[which(fit.res.tune$grp_assign==i)]<-beta0_est[i]
         }
-        
+
         pred.train<-X.train %*% beta_est+intercept
         cindex.train.Peng.tune<-concordance.index(x=1/as.numeric(pred.train), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
         mod.train<-Rsquare(cluster =fit.res.tune$grp_assign,Y = Y.train,X = X.train,G = t(G.train))
         R2.gene.train.tune<-mean(mod.train$gene[which(select.feature==1)])
-        
+
         G.test.add = cbind(1, G.test)
         pai_est.tune = sapply(1:K, function(k) exp(G.test.add %*% gamma_est_matrix[,  k, drop = F])/rowSums(exp(G.test.add %*% gamma_est_matrix)))
         cluster.test<-apply(pai_est.tune,1,which.max)
         ari.test.Peng.tune<-adjustedRandIndex(cluster.test,label.test)
-        
+
         data1<-data.frame(cluster=cluster.test,Y=Y.test,Y.ind=delta.test,x1=X.test[,1],x2=X.test[,2])
         mod.cox1<-coxph(Surv(Y, Y.ind) ~ as.factor(cluster)+x1+x2, data = data1)
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.test.tune<-mod.anova$Chisq[2]
-        
+
         mod.test<-Rsquare(cluster =cluster.test,Y = Y.test,X = X.test,G = t(G.test))
         R2.gene.test.tune<-mean(mod.test$gene[which(select.feature==1)])
-        
+
         intercept<-rep(NA,nrow(X.test))
         for(i in 1:K){
           intercept[which(cluster.test==i)]<-beta0_est[i]
         }
-        
+
         pred.test<-X.test %*% beta_est+intercept
         cindex.test.Peng.tune.hard<-concordance.index(x=1/as.numeric(pred.test), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-        
+
         cindex.train.random<-c()
         cindex.test.random<-c()
         cluster.test1<-cluster.test
@@ -721,25 +683,25 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           for(i in 1:K){
             intercept[which(cluster.train1==i)]<-beta0_est[i]
           }
-          
+
           pred.train<-X.train %*% beta_est+intercept
-          
+
           intercept<-rep(NA,nrow(X.test))
           for(i in 1:K){
             intercept[which(cluster.test1==i)]<-beta0_est[i]
           }
-          
+
           pred.test<-X.test %*% beta_est+intercept
-          
-          
+
+
           cindex.train.random[ind]<-concordance.index(x=1/as.numeric(pred.train), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
           cindex.test.random[ind]<-concordance.index(x=1/as.numeric(pred.test), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-          
+
         }
-        
+
         cindex.train.Peng.tune.adjust<-(cindex.train.Peng.tune-mean(cindex.train.random))/(1-mean(cindex.train.random))
         cindex.test.Peng.tune.adjust<-(cindex.test.Peng.tune.hard-mean(cindex.test.random))/(1-mean(cindex.test.random))
-        
+
         #---------------------------------------------
         #use num to select lambda
         #---------------------------------------------
@@ -752,11 +714,11 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
                                       alpha=0.5, G=as.data.frame(G.train), Y=Y.train, X=X.train, theta_int=theta_int)
         end_time=Sys.time()
         time.GM=as_hms(end_time-start_time)
-        
-        beta=fit.res.num$par$gamma 
+
+        beta=fit.res.num$par$gamma
         beta<-as.data.frame(beta)
         select.feature<-as.numeric(apply(beta,1,function(x){sum(x==0)})!=K)[-1]
-        
+
         jaccard.index.Peng.num<-Jaccard.index(true.feature, select.feature)
         num.Peng.num<-sum(select.feature==1)
         ari.train.Peng.num<-adjustedRandIndex(fit.res.num$grp_assign,label.train)
@@ -765,7 +727,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.train.num<-mod.anova$Chisq[2]
-        
+
         beta_est=fit.res.num$par$beta
         gamma_est_matrix=fit.res.num$par$gamma
         beta0_est=fit.res.num$par$beta0
@@ -774,36 +736,36 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         for(i in 1:K){
           intercept[which(fit.res.num$grp_assign==i)]<-beta0_est[i]
         }
-        
+
         pred.train<-X.train %*% beta_est+intercept
         cindex.train.Peng.num<-concordance.index(x=1/as.numeric(pred.train), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
-        
+
         mod.train<-Rsquare(cluster =fit.res.num$grp_assign,Y = Y.train,X = X.train,G = t(G.train))
         R2.gene.train.num<-mean(mod.train$gene[which(select.feature==1)])
-        
-        
+
+
         G.test.add = cbind(1, G.test)
         pai_est.num = sapply(1:K, function(k) exp(G.test.add %*% gamma_est_matrix[,  k, drop = F])/rowSums(exp(G.test.add %*% gamma_est_matrix)))
-        
+
         cluster.test<-apply(pai_est.num,1,which.max)
         ari.test.Peng.num<-adjustedRandIndex(cluster.test,label.test)
-        
+
         data1<-data.frame(cluster=cluster.test,Y=Y.test,Y.ind=delta.test,x1=X.test[,1],x2=X.test[,2])
         mod.cox1<-coxph(Surv(Y, Y.ind) ~ as.factor(cluster)+x1+x2, data = data1)
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.test.num<-mod.anova$Chisq[2]
-        
+
         mod.test<-Rsquare(cluster =cluster.test,Y = Y.test,X = X.test,G = t(G.test))
         R2.gene.test.num<-mean(mod.test$gene[which(select.feature==1)])
-        
+
         intercept<-rep(NA,nrow(X.test))
         for(i in 1:K){
           intercept[which(cluster.test==i)]<-beta0_est[i]
         }
         pred.test<-X.test %*% beta_est+intercept
         cindex.test.Peng.num.hard<-concordance.index(x=1/as.numeric(pred.test), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-        
+
         cindex.train.random<-c()
         cindex.test.random<-c()
         cluster.test1<-cluster.test
@@ -815,25 +777,25 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           for(i in 1:K){
             intercept[which(cluster.train1==i)]<-beta0_est[i]
           }
-          
+
           pred.train<-X.train %*% beta_est+intercept
-          
+
           intercept<-rep(NA,nrow(X.test))
           for(i in 1:K){
             intercept[which(cluster.test1==i)]<-beta0_est[i]
           }
-          
+
           pred.test<-X.test %*% beta_est+intercept
-          
-          
+
+
           cindex.train.random[ind]<-concordance.index(x=1/as.numeric(pred.train), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
           cindex.test.random[ind]<-concordance.index(x=1/as.numeric(pred.test), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-          
+
         }
-        
+
         cindex.train.Peng.num.adjust<-(cindex.train.Peng.num-mean(cindex.train.random))/(1-mean(cindex.train.random))
         cindex.test.Peng.num.adjust<-(cindex.test.Peng.num.hard-mean(cindex.test.random))/(1-mean(cindex.test.random))
-        
+
         #-------------------------------------------------
         GM.res<-list(mod.tune=fit.res.tune,mod.num=fit.res.num,
                      ari.train.tune=ari.train.Peng.tune,ari.train.num=ari.train.Peng.num,
@@ -863,7 +825,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
                      num=num)
         #return(GM.res)
         print("Finish GM method!")
-        
+
         #------------------------------
         #SKM method
         #------------------------------
@@ -871,33 +833,33 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         #-------------------------------------------------
         #Permutation tune wbound
         #-------------------------------------------------
-        
+
         optimal_wbound<-KMeansSparseCluster.permute(G.train,K=K,wbounds=wbounds,silent = T)$bestw
-        
+
         start_time=Sys.time()
         mod.tune<-KMeansSparseCluster(G.train,K=K,wbounds=optimal_wbound,silent = T)
         end_time=Sys.time()
         time.SKM=as_hms(end_time-start_time)
-        
+
         weight<-mod.tune[[1]]$ws
         select.feature<-as.numeric(weight!=0)
         num.skmeans.tune<-sum(select.feature==1)
         print(paste0("By permutation, wbound=",optimal_wbound," that selects  ",num.skmeans.tune," features."))
-        
+
         ari.train.kmeans.tune<-adjustedRandIndex(mod.tune[[1]]$Cs,label.train)
         mod.train<-Rsquare(cluster =mod.tune[[1]]$Cs,Y = Y.train,X = X.train,G = t(G.train))
         R2.gene.train.tune<-mean(mod.train$gene[which(select.feature==1)])
-        
+
         data1<-data.frame(cluster=mod.tune[[1]]$Cs,Y=Y.train,Y.ind=delta.train,x1=X.train[,1],x2=X.train[,2])
         mod.cox1<-coxph(Surv(Y, Y.ind) ~ as.factor(cluster)+x1+x2, data = data1)
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.train.tune<-mod.anova$Chisq[2]
-        
+
         centers<-cbind(apply(G.train[which(mod.tune[[1]]$Cs==1),,drop=F],2,mean),
                        apply(G.train[which(mod.tune[[1]]$Cs==2),,drop=F],2,mean),
                        apply(G.train[which(mod.tune[[1]]$Cs==3),,drop=F],2,mean))
-        
+
         distance<-apply(G.test,1,function(x){
           distance1<-apply(centers,2,function(y){
             sum(weight*(x-y)^2)
@@ -905,7 +867,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         })
         cluster.test<-apply(distance,2,which.min)
         ari.test.kmeans.tune<-adjustedRandIndex(cluster.test,label.test)
-        
+
         mod.test<-Rsquare(cluster =cluster.test,Y = Y.test,X = X.test,G = t(G.test))
         R2.gene.test.tune<-mean(mod.test$gene[which(select.feature==1)])
         #Rsquare.outcome.test<-mod.test$outcome
@@ -914,7 +876,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.test.tune<-mod.anova$Chisq[2]
-        
+
         pred.train.kmeans<-rep(NA,length(Y.train))
         pred.test.kmeans<-rep(NA,length(Y.test))
         for(i in 1:K){
@@ -925,7 +887,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         }
         cindex.train.kmeans.tune<-concordance.index(x=1/as.numeric(pred.train.kmeans), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
         cindex.test.kmeans.tune<-concordance.index(x=1/as.numeric(pred.test.kmeans), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-        
+
         cindex.train.random<-c()
         cindex.test.random<-c()
         cluster.test1<-cluster.test
@@ -943,18 +905,18 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           }
           cindex.train.random[ind]<-concordance.index(x=1/as.numeric(pred.train.kmeans), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
           cindex.test.random[ind]<-concordance.index(x=1/as.numeric(pred.test.kmeans), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-          
+
         }
-        
+
         cindex.train.kmeans.tune.adjust<-(cindex.train.kmeans.tune-mean(cindex.train.random))/(1-mean(cindex.train.random))
         cindex.test.kmeans.tune.adjust<-(cindex.test.kmeans.tune-mean(cindex.test.random))/(1-mean(cindex.test.random))
-        
+
         jaccard.index.skmeans.tune<-Jaccard.index(true.feature,select.feature)
-        
+
         #-------------------------------------------------
         #choose number of genes larger but cloest to 50
         #-------------------------------------------------
-        
+
         mod.num<-KMeansSparseCluster(G.train,K=K,nstart=50)
         wbound.vector<-unlist(lapply(mod.num,function(x){x$wbound}))
         num.vector<-unlist(lapply(mod.num,function(x){sum(x$ws>0)}))
@@ -966,8 +928,8 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         select.feature<-as.numeric(weight!=0)
         num.skmeans.num<-sum(select.feature==1)
         print(paste0("Tuning wbound=",wbound.num," that selects  ",num.skmeans.num," features."))
-        
-        
+
+
         mod.train<-Rsquare(cluster =mod.num$Cs,Y = Y.train,X = X.train,G = t(G.train ))
         R2.gene.train.num<-mean(mod.train$gene[which(select.feature==1)])
         #mod.kmeans<-kmeans(G.train1,center=K,nstart=20)
@@ -977,11 +939,11 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.train.num<-mod.anova$Chisq[2]
-        
+
         centers<-cbind(apply(G.train[which(mod.num$Cs==1),,drop=F],2,mean),
                        apply(G.train[which(mod.num$Cs==2),,drop=F],2,mean),
                        apply(G.train[which(mod.num$Cs==3),,drop=F],2,mean))
-        
+
         distance<-apply(G.test,1,function(x){
           distance1<-apply(centers,2,function(y){
             sum(weight*(x-y)^2)
@@ -996,7 +958,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.test.num<-mod.anova$Chisq[2]
-        
+
         ari.test.kmeans.num<-adjustedRandIndex(cluster.test,label.test)
         pred.train.kmeans<-rep(NA,length(Y.train))
         pred.test.kmeans<-rep(NA,length(Y.test))
@@ -1008,7 +970,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         }
         cindex.train.kmeans.num<-concordance.index(x=1/as.numeric(pred.train.kmeans), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
         cindex.test.kmeans.num<-concordance.index(x=1/as.numeric(pred.test.kmeans), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-        
+
         cindex.train.random<-c()
         cindex.test.random<-c()
         cluster.test1<-cluster.test
@@ -1026,14 +988,14 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           }
           cindex.train.random[ind]<-concordance.index(x=1/as.numeric(pred.train.kmeans), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
           cindex.test.random[ind]<-concordance.index(x=1/as.numeric(pred.test.kmeans), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-          
+
         }
-        
+
         cindex.train.kmeans.num.adjust<-(cindex.train.kmeans.num-mean(cindex.train.random))/(1-mean(cindex.train.random))
         cindex.test.kmeans.num.adjust<-(cindex.test.kmeans.num-mean(cindex.test.random))/(1-mean(cindex.test.random))
-        
+
         jaccard.index.skmeans.num<-Jaccard.index(TrueFeature =true.feature,SelectedFeature1 =select.feature )
-        
+
         #-------------------------------------------------
         SKM.res<-list(mod.tune=mod.tune,mod.num=mod.num,
                       ari.train.tune=ari.train.kmeans.tune,ari.train.num=ari.train.kmeans.num,
@@ -1058,10 +1020,10 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
                       R2.gene.train.num=R2.gene.train.num,
                       wbound.tune=optimal_wbound,wbound.num=wbound.num,
                       train_time=time.SKM)
-        
+
         print("Finish SKM method!")
-        
-        
+
+
         #------------------------------
         #PMBC method
         #------------------------------
@@ -1074,7 +1036,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         sigma_c<-sapply(1:K,function(x) apply(as.matrix(G.train[data.kmeans$cluster==x,]),2,var))
         sum_squares<-sapply(1:K,function(x) c_size[x]*sigma_c[,x])
         sigma_int<-apply(sum_squares,1,sum)/n
-        
+
         #lambda.PMBC=seq(20,100,2)
         lambda.PMBC=seq(8,70,2)
         #-------------------------------------------------
@@ -1092,27 +1054,27 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           })
           BIC_vector[ind_lambda]=BIC
         }
-        
+
         lambda.tune=lambda.PMBC[which.min(BIC_vector)]
-        
+
         start_time=Sys.time()
         mod.tune<-em_mbc(t(G.train), c_center=miu_int, v_int=sigma_int, pi_int=pi_int,
                          lambda=lambda.tune, K=K, no_init=1, max_iter = 200)
         end_time=Sys.time()
         time.PMBC=as_hms(end_time-start_time)
-        
+
         num.PMBC.tune=length(mod.tune$selected.index)
         print(paste0("By BIC, lambda=",lambda.tune," that selects  ",num.PMBC.tune," features."))
         select.feature=rep(0,ncol(G.train))
         select.feature[mod.tune$selected.index]=1
-        
+
         pi_est_train<-mod.tune$optimal_result$pi
         mu_est_train<-mod.tune$optimal_result$mu
         sigma_est_train<-mod.tune$optimal_result$sigma
         grp_assign_train<-apply(mod.tune$optimal_result$z,1,which.max)
         cluster.train=grp_assign_train
         ari.train.PMBC.tune<-adjustedRandIndex(cluster.train,label.train)
-        
+
         data1<-data.frame(cluster=cluster.train,Y=Y.train,Y.ind=delta.train,x1=X.train[,1],x2=X.train[,2])
         mod.cox1<-coxph(Surv(Y, Y.ind) ~ as.factor(cluster)+x1+x2, data = data1)
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
@@ -1120,7 +1082,7 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.train.tune<-mod.anova$Chisq[2]
         mod.train<-Rsquare(cluster =cluster.train,Y = Y.train,X = X.train,G = t(G.train))
         R2.gene.train.tune<-mean(mod.train$gene[which(select.feature==1)])
-        
+
         mult_pdf=t(apply(G.test,1,function(x) {
           mult_pdf_v<-rep(NA, K)
           for(i in 1:K){
@@ -1128,10 +1090,10 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           }
           return(mult_pdf_v)
         }))
-        
+
         d<-apply(mult_pdf,1,function(x) brob(x)*pi_est_train)
         postprob.matrix<-sapply(d,function(x) as.numeric(x/sum(x)))
-        
+
         grp_assign_test=apply(postprob.matrix,2,which.max)
         cluster.test<-grp_assign_test
         ari.test.PMBC.tune<-adjustedRandIndex(cluster.test,label.test)
@@ -1140,11 +1102,11 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.test.tune<-mod.anova$Chisq[2]
-        
+
         mod.test<-Rsquare(cluster =cluster.test,Y = Y.test,X = X.test,G = t(G.test))
         R2.gene.test.tune<-mean(mod.test$gene[which(select.feature==1)])
-        
-        
+
+
         pred.train.PMBC<-rep(NA,length(Y.train))
         pred.test.PMBC<-rep(NA,length(Y.test))
         for(i in 1:K){
@@ -1153,10 +1115,10 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           pred.train.PMBC[which(cluster.train==i)]<-mod.lm$fitted.values
           pred.test.PMBC[which(cluster.test==i)]<-predict(mod.lm,newdata = as.data.frame(X.test[which(cluster.test==i),]))
         }
-        
+
         cindex.train.tune<-concordance.index(x=1/as.numeric(pred.train.PMBC), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
         cindex.test.tune<-concordance.index(x=1/as.numeric(pred.test.PMBC), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-        
+
         cindex.train.random<-c()
         cindex.test.random<-c()
         cluster.test1<-cluster.test
@@ -1174,18 +1136,18 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           }
           cindex.train.random[ind]<-concordance.index(x=1/as.numeric(pred.train.PMBC), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
           cindex.test.random[ind]<-concordance.index(x=1/as.numeric(pred.test.PMBC), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-          
+
         }
-        
+
         cindex.train.tune.adjust<-(cindex.train.tune-mean(cindex.train.random))/(1-mean(cindex.train.random))
         cindex.test.tune.adjust<-(cindex.test.tune-mean(cindex.test.random))/(1-mean(cindex.test.random))
-        
+
         jaccard.index.PMBC.tune<-Jaccard.index(true.feature,select.feature)
-        
+
         #-------------------------------------------------
         #choose number of genes cloest to 50
         #-------------------------------------------------
-        
+
         selected.all=rep(NA, length(lambda.PMBC))
         for(m in 1:length(lambda.PMBC)){
           lambda=lambda.PMBC[m]
@@ -1198,15 +1160,15 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           })
           selected.all[m]<-ngenes
         }
-        
+
         lambda.num=lambda.PMBC[which.min(abs(selected.all-50))]
-        
+
         mod.num<-em_mbc(t(G.train), c_center=miu_int, v_int=sigma_int, pi_int=pi_int,
                         lambda=lambda.num, K=K, no_init=1, max_iter = 200)
-        
+
         num.PMBC.num=length(mod.num$selected.index)
         print(paste0("Tuning lambda=",lambda.num," that selects  ",num.PMBC.num," features."))
-        
+
         pi_est_train<-mod.num$optimal_result$pi
         mu_est_train<-mod.num$optimal_result$mu
         sigma_est_train<-mod.num$optimal_result$sigma
@@ -1215,14 +1177,14 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         ari.train.PMBC.num<-adjustedRandIndex(cluster.train,label.train)
         mod.train<-Rsquare(cluster =cluster.train,Y = Y.train,X = X.train,G = t(G.train ))
         R2.gene.train.num<-mean(mod.train$gene[mod.num$selected.index])
-        
+
         data1<-data.frame(cluster=cluster.train,Y=Y.train,Y.ind=delta.train,x1=X.train[,1],x2=X.train[,2])
         mod.cox1<-coxph(Surv(Y, Y.ind) ~ as.factor(cluster)+x1+x2, data = data1)
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.train.num<-mod.anova$Chisq[2]
-        
-        
+
+
         mult_pdf=t(apply(G.test,1,function(x) {
           mult_pdf_v<-rep(NA, K)
           for(i in 1:K){
@@ -1230,10 +1192,10 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           }
           return(mult_pdf_v)
         }))
-        
+
         d<-apply(mult_pdf,1,function(x) brob(x)*pi_est_train)
         postprob.matrix<-sapply(d,function(x) as.numeric(x/sum(x)))
-        
+
         grp_assign_test=apply(postprob.matrix,2,which.max)
         cluster.test<-grp_assign_test
         ari.test.PMBC.num<-adjustedRandIndex(cluster.test,label.test)
@@ -1244,8 +1206,8 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         mod.cox2<-coxph(Surv(Y, Y.ind) ~ x1+x2, data = data1)
         mod.anova<-anova(mod.cox1,mod.cox2)
         F.test.num<-mod.anova$Chisq[2]
-        
-        
+
+
         pred.train.PMBC<-rep(NA,length(Y.train))
         pred.test.PMBC<-rep(NA,length(Y.test))
         for(i in 1:K){
@@ -1254,10 +1216,10 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           pred.train.PMBC[which(cluster.train==i)]<-mod.lm$fitted.values
           pred.test.PMBC[which(cluster.test==i)]<-predict(mod.lm,newdata = as.data.frame(X.test[which(cluster.test==i),]))
         }
-        
+
         cindex.train.num<-concordance.index(x=1/as.numeric(pred.train.PMBC), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
         cindex.test.num<-concordance.index(x=1/as.numeric(pred.test.PMBC), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-        
+
         cindex.train.random<-c()
         cindex.test.random<-c()
         cluster.test1<-cluster.test
@@ -1275,16 +1237,16 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
           }
           cindex.train.random[ind]<-concordance.index(x=1/as.numeric(pred.train.PMBC), surv.time=Y.train, surv.event=delta.train, method="noether")$c.index
           cindex.test.random[ind]<-concordance.index(x=1/as.numeric(pred.test.PMBC), surv.time=Y.test, surv.event=delta.test, method="noether")$c.index
-          
+
         }
-        
+
         cindex.train.num.adjust<-(cindex.train.num-mean(cindex.train.random))/(1-mean(cindex.train.random))
         cindex.test.num.adjust<-(cindex.test.num-mean(cindex.test.random))/(1-mean(cindex.test.random))
-        
+
         select.feature=rep(0,ncol(G.train))
         select.feature[mod.num$selected.index]=1
         jaccard.index.PMBC.num<-Jaccard.index(true.feature,select.feature)
-        
+
         #-------------------------------------------------
         PMBC.res<-list(mod.tune=mod.tune,mod.num=mod.num,
                        ari.train.tune=ari.train.PMBC.tune,ari.train.num=ari.train.PMBC.num,
@@ -1322,8 +1284,8 @@ resSurv.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
   }
 }
 
-res.SC=resSurv.gen(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vector_all=c(2)) #speed6 screen 972301
-res=resSurv.gen(K=3,SC=FALSE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vector_all=c(2)) #speed5 screen 54140
+res.SC=resSurv.gen(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vector_all=c(2))
+res=resSurv.gen(K=3,SC=FALSE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vector_all=c(2))
 
 
 library(gridExtra)
@@ -1336,14 +1298,14 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
   cindex.test.yujia.matrix.hard.num<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   cindex.train.yujia.matrix.hard.num.adjust<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   cindex.test.yujia.matrix.hard.num.adjust<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
-  
+
   Jaccard.yujia.matrix.num<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   num.yujia.matrix.num<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   F.outcome.matrix.train<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   Rsquare.gene.matrix.train<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   F.outcome.matrix.test<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   Rsquare.gene.matrix.test<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
-  
+
   ari.train.yujia.matrix.num.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   ari.test.yujia.matrix.num.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   cindex.train.yujia.matrix.num.hard.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
@@ -1355,10 +1317,10 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
   Rsquare.gene.matrix.train.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   F.outcome.matrix.test.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   Rsquare.gene.matrix.test.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
-  
+
   w.yujia.matrix<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   w.yujia.matrix.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
-  
+
   ari.train.Peng.matrix.num<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   ari.test.Peng.matrix.num<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   cindex.train.Peng.matrix.num.hard<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
@@ -1371,7 +1333,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
   Rsquare.gene.matrix.train.Peng<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   F.outcome.matrix.test.Peng<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   Rsquare.gene.matrix.test.Peng<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
-  
+
   ari.train.Peng.matrix.num.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   ari.test.Peng.matrix.num.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   cindex.train.Peng.matrix.num.hard.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
@@ -1383,7 +1345,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
   Rsquare.gene.matrix.train.Peng.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   F.outcome.matrix.test.Peng.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   Rsquare.gene.matrix.test.Peng.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
-  
+
   ari.train.skmeans.matrix.num<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   ari.test.skmeans.matrix.num<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   cindex.train.skmeans.matrix.num<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
@@ -1396,7 +1358,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
   Rsquare.gene.matrix.train.skmeans<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   F.outcome.matrix.test.skmeans<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   Rsquare.gene.matrix.test.skmeans<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
-  
+
   ari.train.skmeans.matrix.num.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   ari.test.skmeans.matrix.num.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   cindex.train.skmeans.matrix.num.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
@@ -1408,7 +1370,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
   Rsquare.gene.matrix.train.skmeans.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   F.outcome.matrix.test.skmeans.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   Rsquare.gene.matrix.test.skmeans.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
-  
+
   ari.train.PMBC.matrix.num<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   ari.test.PMBC.matrix.num<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   cindex.train.PMBC.matrix.num<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
@@ -1421,7 +1383,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
   Rsquare.gene.matrix.train.PMBC<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   F.outcome.matrix.test.PMBC<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   Rsquare.gene.matrix.test.PMBC<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
-  
+
   ari.train.PMBC.matrix.num.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   ari.test.PMBC.matrix.num.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   cindex.train.PMBC.matrix.num.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
@@ -1433,8 +1395,8 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
   Rsquare.gene.matrix.train.PMBC.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   F.outcome.matrix.test.PMBC.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
   Rsquare.gene.matrix.test.PMBC.se<-matrix(NA,nrow=length(c1_vector_all),ncol=length(mu_vector),dimnames = list(paste("c1=",c1_vector_all,sep=""),1:length(mu_vector)))
-  
-  
+
+
   for(ind_c1 in 1:length(c1_vector_all)) {
     c1<-c1_vector_all[ind_c1]
     for (ind_mu in 1:length(mu_vector)) {
@@ -1460,7 +1422,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$WJL.res$F.test.tune})),na.rm=T)
         Rsquare.gene.matrix.train[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$WJL.res$R2.gene.train.tune})),na.rm=T)
         Rsquare.gene.matrix.test[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$WJL.res$R2.gene.test.tune})),na.rm=T)
-        
+
         ari.train.yujia.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$WJL.res$ari.train.tune})),na.rm=T)
         ari.test.yujia.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$WJL.res$ari.test.tune})),na.rm=T)
         cindex.train.yujia.matrix.num.hard.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$WJL.res$cindex.train.tune})),na.rm=T)
@@ -1472,10 +1434,10 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$WJL.res$F.test.tune})),na.rm=T)
         Rsquare.gene.matrix.train.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$WJL.res$Rsquare.gene.train.tune})),na.rm=T)
         Rsquare.gene.matrix.test.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$WJL.res$R2.gene.test.tune})),na.rm=T)
-        
+
         w.yujia.matrix[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$w0.est})),na.rm=T)
         w.yujia.matrix.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$w0.est})),na.rm=T)/sqrt(50)
-        
+
         ari.train.Peng.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$GM.res$ari.train.tune})),na.rm=T)
         ari.test.Peng.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$GM.res$ari.test.tune})),na.rm=T)
         cindex.train.Peng.matrix.num.hard[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$GM.res$cindex.train.tune})),na.rm=T)
@@ -1488,7 +1450,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.Peng[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$GM.res$F.test.tune})),na.rm=T)
         Rsquare.gene.matrix.train.Peng[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$GM.res$R2.gene.train.tune})),na.rm=T)
         Rsquare.gene.matrix.test.Peng[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$GM.res$R2.gene.test.tune})),na.rm=T)
-        
+
         ari.train.Peng.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$GM.res$ari.train.tune})),na.rm=T)
         ari.test.Peng.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$GM.res$ari.test.tune})),na.rm=T)
         cindex.train.Peng.matrix.num.hard.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$GM.res$cindex.train.tune})),na.rm=T)
@@ -1500,7 +1462,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.Peng.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$GM.res$F.test.tune})),na.rm=T)
         Rsquare.gene.matrix.train.Peng.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$GM.res$R2.gene.train.tune})),na.rm=T)
         Rsquare.gene.matrix.test.Peng.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$GM.res$R2.gene.test.tune})),na.rm=T)
-        
+
         ari.train.skmeans.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$SKM.res$ari.train.tune})),na.rm=T)
         ari.test.skmeans.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$SKM.res$ari.test.tune})),na.rm=T)
         cindex.train.skmeans.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$SKM.res$cindex.train.tune})),na.rm=T)
@@ -1513,7 +1475,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.skmeans[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$SKM.res$F.test.tune})),na.rm=T)
         Rsquare.gene.matrix.train.skmeans[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$SKM.res$R2.gene.train.tune})),na.rm=T)
         Rsquare.gene.matrix.test.skmeans[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$SKM.res$R2.gene.test.tune})),na.rm=T)
-        
+
         ari.train.skmeans.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$SKM.res$ari.train.tune})),na.rm=T)
         ari.test.skmeans.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$SKM.res$ari.test.tune})),na.rm=T)
         cindex.train.skmeans.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$SKM.res$cindex.train.tune})),na.rm=T)
@@ -1525,7 +1487,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.skmeans.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$SKM.res$F.test.tune})),na.rm=T)
         Rsquare.gene.matrix.train.skmeans.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$SKM.res$R2.gene.train.tune})),na.rm=T)
         Rsquare.gene.matrix.test.skmeans.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$SKM.res$R2.gene.test.tune})),na.rm=T)
-        
+
         ari.train.PMBC.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$PMBC.res$ari.train.tune})),na.rm=T)
         ari.test.PMBC.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$PMBC.res$ari.test.tune})),na.rm=T)
         cindex.train.PMBC.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$PMBC.res$cindex.train.tune})),na.rm=T)
@@ -1538,7 +1500,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.PMBC[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$PMBC.res$F.test.tune})),na.rm=T)
         Rsquare.gene.matrix.train.PMBC[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$PMBC.res$R2.gene.train.tune})),na.rm=T)
         Rsquare.gene.matrix.test.PMBC[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$PMBC.res$R2.gene.test.tune})),na.rm=T)
-        
+
         ari.train.PMBC.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$PMBC.res$ari.train.tune})),na.rm=T)
         ari.test.PMBC.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$PMBC.res$ari.test.tune})),na.rm=T)
         cindex.train.PMBC.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$PMBC.res$cindex.train.tune})),na.rm=T)
@@ -1550,7 +1512,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.PMBC.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$PMBC.res$F.test.tune})),na.rm=T)
         Rsquare.gene.matrix.train.PMBC.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$PMBC.res$R2.gene.train.tune})),na.rm=T)
         Rsquare.gene.matrix.test.PMBC.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$PMBC.res$R2.gene.test.tune})),na.rm=T)
-        
+
       }
       else {
         ari.train.yujia.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$WJL.res$ari.train.num})),na.rm=T)
@@ -1565,7 +1527,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$WJL.res$F.test.num})),na.rm=T)
         Rsquare.gene.matrix.train[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$WJL.res$R2.gene.train.num})),na.rm=T)
         Rsquare.gene.matrix.test[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$WJL.res$R2.gene.test.num})),na.rm=T)
-        
+
         ari.train.yujia.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$WJL.res$ari.train.num})),na.rm=T)
         ari.test.yujia.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$WJL.res$ari.test.num})),na.rm=T)
         cindex.train.yujia.matrix.num.hard.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$WJL.res$cindex.train.num})),na.rm=T)
@@ -1577,10 +1539,10 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$WJL.res$F.test.num})),na.rm=T)
         Rsquare.gene.matrix.train.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$WJL.res$Rsquare.gene.train.num})),na.rm=T)
         Rsquare.gene.matrix.test.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$WJL.res$R2.gene.test.num})),na.rm=T)
-        
+
         w.yujia.matrix[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$w0.est})),na.rm=T)
         w.yujia.matrix.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$w0.est})),na.rm=T)/sqrt(50)
-        
+
         ari.train.Peng.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$GM.res$ari.train.num})),na.rm=T)
         ari.test.Peng.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$GM.res$ari.test.num})),na.rm=T)
         cindex.train.Peng.matrix.num.hard[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$GM.res$cindex.train.num})),na.rm=T)
@@ -1593,7 +1555,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.Peng[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$GM.res$F.test.num})),na.rm=T)
         Rsquare.gene.matrix.train.Peng[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$GM.res$R2.gene.train.num})),na.rm=T)
         Rsquare.gene.matrix.test.Peng[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$GM.res$R2.gene.test.num})),na.rm=T)
-        
+
         ari.train.Peng.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$GM.res$ari.train.num})),na.rm=T)
         ari.test.Peng.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$GM.res$ari.test.num})),na.rm=T)
         cindex.train.Peng.matrix.num.hard.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$GM.res$cindex.train.num})),na.rm=T)
@@ -1605,7 +1567,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.Peng.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$GM.res$F.test.num})),na.rm=T)
         Rsquare.gene.matrix.train.Peng.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$GM.res$R2.gene.train.num})),na.rm=T)
         Rsquare.gene.matrix.test.Peng.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$GM.res$R2.gene.test.num})),na.rm=T)
-        
+
         ari.train.skmeans.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$SKM.res$ari.train.num})),na.rm=T)
         ari.test.skmeans.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$SKM.res$ari.test.num})),na.rm=T)
         cindex.train.skmeans.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$SKM.res$cindex.train.num})),na.rm=T)
@@ -1618,7 +1580,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.skmeans[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$SKM.res$F.test.num})),na.rm=T)
         Rsquare.gene.matrix.train.skmeans[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$SKM.res$R2.gene.train.num})),na.rm=T)
         Rsquare.gene.matrix.test.skmeans[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$SKM.res$R2.gene.test.num})),na.rm=T)
-        
+
         ari.train.skmeans.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$SKM.res$ari.train.num})),na.rm=T)
         ari.test.skmeans.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$SKM.res$ari.test.num})),na.rm=T)
         cindex.train.skmeans.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$SKM.res$cindex.train.num})),na.rm=T)
@@ -1630,7 +1592,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.skmeans.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$SKM.res$F.test.num})),na.rm=T)
         Rsquare.gene.matrix.train.skmeans.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$SKM.res$R2.gene.train.num})),na.rm=T)
         Rsquare.gene.matrix.test.skmeans.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$SKM.res$R2.gene.test.num})),na.rm=T)
-        
+
         ari.train.PMBC.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$PMBC.res$ari.train.num})),na.rm=T)
         ari.test.PMBC.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$PMBC.res$ari.test.num})),na.rm=T)
         cindex.train.PMBC.matrix.num[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$PMBC.res$cindex.train.num})),na.rm=T)
@@ -1643,7 +1605,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.PMBC[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$PMBC.res$F.test.num})),na.rm=T)
         Rsquare.gene.matrix.train.PMBC[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$PMBC.res$R2.gene.train.num})),na.rm=T)
         Rsquare.gene.matrix.test.PMBC[ind_c1,ind_mu]<-mean(unlist(lapply(RES,function(x){x$PMBC.res$R2.gene.test.num})),na.rm=T)
-        
+
         ari.train.PMBC.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$PMBC.res$ari.train.num})),na.rm=T)
         ari.test.PMBC.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$PMBC.res$ari.test.num})),na.rm=T)
         cindex.train.PMBC.matrix.num.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$PMBC.res$cindex.train.num})),na.rm=T)
@@ -1655,18 +1617,18 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
         F.outcome.matrix.test.PMBC.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$PMBC.res$F.test.num})),na.rm=T)
         Rsquare.gene.matrix.train.PMBC.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$PMBC.res$R2.gene.train.num})),na.rm=T)
         Rsquare.gene.matrix.test.PMBC.se[ind_c1,ind_mu]<-sd(unlist(lapply(RES,function(x){x$PMBC.res$R2.gene.test.num})),na.rm=T)
-        
+
       }
-      
+
     }
-    
+
     ari.train1<-rbind(mu_vector,
                       ari.train.yujia.matrix.num[ind_c1,],ari.train.Peng.matrix.num[ind_c1,],
                       ari.train.skmeans.matrix.num[ind_c1,],ari.train.PMBC.matrix.num[ind_c1,])
     ari.test1<-rbind(mu_vector,
                      ari.test.yujia.matrix.num[ind_c1,],ari.test.Peng.matrix.num[ind_c1,],
                      ari.test.skmeans.matrix.num[ind_c1,],ari.test.PMBC.matrix.num[ind_c1,])
-    
+
     cindex.train1<-rbind(mu_vector,
                          cindex.train.yujia.matrix.hard.num.adjust[ind_c1,],cindex.train.Peng.matrix.num.hard.adjust[ind_c1,],
                          cindex.train.skmeans.matrix.num.adjust[ind_c1,],cindex.train.PMBC.matrix.num.adjust[ind_c1,])
@@ -1679,30 +1641,30 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
     # num1<-rbind(mu_vector,
     #             num.yujia.matrix.num[ind_c1,],num.Peng.matrix.num[ind_c1,],
     #             num.skmeans.matrix.num[ind_c1,],num.PMBC.matrix.num[ind_c1,])
-    
+
     F.outcome.train1<-rbind(mu_vector,
                             F.outcome.matrix.train[ind_c1,],F.outcome.matrix.train.Peng[ind_c1,],
                             F.outcome.matrix.train.skmeans[ind_c1,],F.outcome.matrix.train.PMBC[ind_c1,])
-    
+
     Rsquare.gene.train1<-rbind(mu_vector,
                                Rsquare.gene.matrix.train[ind_c1,],Rsquare.gene.matrix.train.Peng[ind_c1,],
                                Rsquare.gene.matrix.train.skmeans[ind_c1,],Rsquare.gene.matrix.train.PMBC[ind_c1,])
-    
+
     F.outcome.test1<-rbind(mu_vector,
                            F.outcome.matrix.test[ind_c1,],F.outcome.matrix.test.Peng[ind_c1,],
                            F.outcome.matrix.test.skmeans[ind_c1,],F.outcome.matrix.test.PMBC[ind_c1,])
-    
+
     Rsquare.gene.test1<-rbind(mu_vector,
                               Rsquare.gene.matrix.test[ind_c1,],Rsquare.gene.matrix.test.Peng[ind_c1,],
                               Rsquare.gene.matrix.test.skmeans[ind_c1,],Rsquare.gene.matrix.test.PMBC[ind_c1,])
-    
+
     ari.train1.se<-rbind(mu_vector,
                          ari.train.yujia.matrix.num.se[ind_c1,],ari.train.Peng.matrix.num.se[ind_c1,],
                          ari.train.skmeans.matrix.num.se[ind_c1,],ari.train.PMBC.matrix.num.se[ind_c1,])
     ari.test1.se<-rbind(mu_vector,
                         ari.test.yujia.matrix.num.se[ind_c1,],ari.test.Peng.matrix.num.se[ind_c1,],
                         ari.test.skmeans.matrix.num.se[ind_c1,],ari.test.PMBC.matrix.num.se[ind_c1,])
-    
+
     cindex.train1.se<-rbind(mu_vector,
                             cindex.train.yujia.matrix.num.hard.adjust.se[ind_c1,],cindex.train.Peng.matrix.num.hard.adjust.se[ind_c1,],
                             cindex.train.skmeans.matrix.num.adjust.se[ind_c1,],cindex.train.PMBC.matrix.num.adjust.se[ind_c1,])
@@ -1712,24 +1674,24 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
     jaccard1.se<-rbind(mu_vector,
                        Jaccard.yujia.matrix.num.se[ind_c1,],Jaccard.Peng.matrix.num.se[ind_c1,],
                        Jaccard.skmeans.matrix.num.se[ind_c1,],Jaccard.PMBC.matrix.num.se[ind_c1,])
-    
+
     F.outcome.train1.se<-rbind(mu_vector,
                                F.outcome.matrix.train.se[ind_c1,],F.outcome.matrix.train.Peng.se[ind_c1,],
                                F.outcome.matrix.train.skmeans.se[ind_c1,],F.outcome.matrix.train.PMBC.se[ind_c1,])
-    
+
     Rsquare.gene.train1.se<-rbind(mu_vector,
                                   Rsquare.gene.matrix.train.se[ind_c1,],Rsquare.gene.matrix.train.Peng.se[ind_c1,],
                                   Rsquare.gene.matrix.train.skmeans.se[ind_c1,],Rsquare.gene.matrix.train.PMBC.se[ind_c1,])
-    
+
     F.outcome.test1.se<-rbind(mu_vector,
                               F.outcome.matrix.test.se[ind_c1,],F.outcome.matrix.test.Peng.se[ind_c1,],
                               F.outcome.matrix.test.skmeans.se[ind_c1,],F.outcome.matrix.test.PMBC.se[ind_c1,])
-    
+
     Rsquare.gene.test1.se<-rbind(mu_vector,
                                  Rsquare.gene.matrix.test.se[ind_c1,],Rsquare.gene.matrix.test.Peng.se[ind_c1,],
                                  Rsquare.gene.matrix.test.skmeans.se[ind_c1,],Rsquare.gene.matrix.test.PMBC.se[ind_c1,])
-    
-    
+
+
     rownames(ari.train1)<-c("Mu","ogClust_WJL","ogClust_GM","SKM","PMBC")
     rownames(ari.test1)<-c("Mu","ogClust_WJL","ogClust_GM","SKM","PMBC")
     rownames(cindex.train1)<-c("Mu","ogClust_WJL","ogClust_GM","SKM","PMBC")
@@ -1739,7 +1701,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
     rownames(Rsquare.gene.train1)<-c("Mu","ogClust_WJL","ogClust_GM","SKM","PMBC")
     rownames(F.outcome.test1)<-c("Mu","ogClust_WJL","ogClust_GM","SKM","PMBC")
     rownames(Rsquare.gene.test1)<-c("Mu","ogClust_WJL","ogClust_GM","SKM","PMBC")
-    
+
     rownames(ari.train1.se)<-c("Mu","ogClust_WJL","ogClust_GM","SKM","PMBC")
     rownames(ari.test1.se)<-c("Mu","ogClust_WJL","ogClust_GM","SKM","PMBC")
     rownames(cindex.train1.se)<-c("Mu","ogClust_WJL","ogClust_GM","SKM","PMBC")
@@ -1749,7 +1711,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
     rownames(Rsquare.gene.train1.se)<-c("Mu","ogClust_WJL","ogClust_GM","SKM","PMBC")
     rownames(F.outcome.test1.se)<-c("Mu","ogClust_WJL","ogClust_GM","SKM","PMBC")
     rownames(Rsquare.gene.test1.se)<-c("Mu","ogClust_WJL","ogClust_GM","SKM","PMBC")
-    
+
     ari.train1.se<-pivot_longer(data = as.data.frame(t(ari.train1.se)),cols=!Mu,names_to="method",values_to="value")
     ari.test1.se<-pivot_longer(data = as.data.frame(t(ari.test1.se)),cols=!Mu,names_to="method",values_to="value")
     cindex.train1.se<-pivot_longer(data = as.data.frame(t(cindex.train1.se)),cols=!Mu,names_to="method",values_to="value")
@@ -1759,8 +1721,8 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
     Rsquare.gene.train1.se<-pivot_longer(data = as.data.frame(t(Rsquare.gene.train1.se)),cols=!Mu,names_to="method",values_to="value")
     F.outcome.test1.se<-pivot_longer(data = as.data.frame(t(F.outcome.test1.se)),cols=!Mu,names_to="method",values_to="value")
     Rsquare.gene.test1.se<-pivot_longer(data = as.data.frame(t(Rsquare.gene.test1.se)),cols=!Mu,names_to="method",values_to="value")
-    
-    
+
+
     ari.train1<-pivot_longer(data = as.data.frame(t(ari.train1)),cols=!Mu,names_to="method",values_to="value")
     ari.test1<-pivot_longer(data = as.data.frame(t(ari.test1)),cols=!Mu,names_to="method",values_to="value")
     cindex.train1<-pivot_longer(data = as.data.frame(t(cindex.train1)),cols=!Mu,names_to="method",values_to="value")
@@ -1770,7 +1732,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
     Rsquare.gene.train1<-pivot_longer(data = as.data.frame(t(Rsquare.gene.train1)),cols=!Mu,names_to="method",values_to="value")
     F.outcome.test1<-pivot_longer(data = as.data.frame(t(F.outcome.test1)),cols=!Mu,names_to="method",values_to="value")
     Rsquare.gene.test1<-pivot_longer(data = as.data.frame(t(Rsquare.gene.test1)),cols=!Mu,names_to="method",values_to="value")
-    
+
     ari.train1$se<-ari.train1.se$value/sqrt(50)
     ari.test1$se<-ari.test1.se$value/sqrt(50)
     cindex.train1$se<-cindex.train1.se$value/sqrt(50)
@@ -1780,14 +1742,14 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
     F.outcome.test1$se<-F.outcome.test1.se$value/sqrt(50)
     Rsquare.gene.train1$se<-Rsquare.gene.train1.se$value/sqrt(50)
     Rsquare.gene.test1$se<-Rsquare.gene.test1.se$value/sqrt(50)
-    
-    
+
+
     Group<-c(rep("ARI.train",nrow(ari.train1)),rep("ARI.test",nrow(ari.train1)),rep("cindex.train",nrow(ari.train1)),
              rep("cindex.test",nrow(ari.train1)),rep("Jaccard",nrow(ari.train1)),
              rep("F.outcome.train",nrow(ari.train1)),rep("R2.gene.train",nrow(ari.train1)),
              rep("F.outcome.test",nrow(ari.train1)),rep("R2.gene.test",nrow(ari.train1)))
     data1<-rbind(ari.train1,ari.test1,cindex.train1,cindex.test1,jaccard1,
-                 F.outcome.train1,Rsquare.gene.train1,F.outcome.test1,Rsquare.gene.test1)  
+                 F.outcome.train1,Rsquare.gene.train1,F.outcome.test1,Rsquare.gene.test1)
     data1<-cbind(data1,Group)
     data1$Group<-factor(data1$Group,levels = c("ARI.train","cindex.train","Jaccard",
                                                "ARI.test","cindex.test",
@@ -1812,7 +1774,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
       legend <- tmp$grobs[[leg]]
       return(legend)}
     mylegend<-g_legend(p)
-    
+
     p1<-ggplot(data)+aes(x=Mu,y=value,color=method,shape=method)+geom_point(size=2.5, position = position_dodge(0.1))+
       geom_errorbar(aes(ymin=value-se, ymax=value+se), size=0.6,width =.2,lwd=0.3,position=position_dodge(0.1))+
       theme(axis.text=element_text(size=20),axis.title=element_text(size=20),
@@ -1820,7 +1782,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"))+
       scale_x_continuous(breaks=mu_vector)+xlab(expression(paste('effect size of gene ',"(",mu,")")))+ylab("ARI")
     p1
-    
+
     data<-data1[which(data1$Group=="cindex.train"),]
     p2<-ggplot(data)+aes(x=Mu,y=value,color=method,shape=method)+geom_point(size=2.5, position = position_dodge(0.1))+
       geom_errorbar(aes(ymin=value-se, ymax=value+se), size=0.6,width =.2,lwd=0.3,position=position_dodge(0.1))+
@@ -1829,7 +1791,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"))+
       scale_x_continuous(breaks=mu_vector)+xlab(expression(paste('effect size of gene ',"(",mu,")")))+ylab("Adjusted C-index")
     p2
-    
+
     data<-data1[which(data1$Group=="F.outcome.train"),]
     p3<-ggplot(data)+aes(x=Mu,y=value,color=method,shape=method)+geom_point(size=2.5, position = position_dodge(0.1))+
       geom_errorbar(aes(ymin=value-se, ymax=value+se), size=0.6,width =.2,lwd=0.3,position=position_dodge(0.1))+
@@ -1838,7 +1800,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"))+
       scale_x_continuous(breaks=mu_vector)+xlab(expression(paste('effect size of gene ',"(",mu,")")))+ylab("log-rank test statistics")
     p3
-    
+
     data<-data1[which(data1$Group=="R2.gene.train"),]
     p4<-ggplot(data)+aes(x=Mu,y=value,color=method,shape=method)+geom_point(size=2.5, position = position_dodge(0.1))+
       geom_errorbar(aes(ymin=value-se, ymax=value+se), size=0.6,width =.2,lwd=0.3,position=position_dodge(0.1))+
@@ -1847,8 +1809,8 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"))+
       scale_x_continuous(breaks=mu_vector)+xlab(expression(paste('effect size of gene ',"(",mu,")")))+ylab(expression(paste(italic(R)^2, "(genes)",sep="")))
     p4
-    
-    
+
+
     data<-data1[which(data1$Group=="ARI.test"),]
     p5<-ggplot(data)+aes(x=Mu,y=value,color=method,shape=method)+geom_point(size=2.5, position = position_dodge(0.1))+
       geom_errorbar(aes(ymin=value-se, ymax=value+se), size=0.6,width =.2,lwd=0.3,position=position_dodge(0.1))+
@@ -1857,7 +1819,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"))+
       scale_x_continuous(breaks=mu_vector)+xlab(expression(paste('effect size of gene ',"(",mu,")")))+ylab("ARI")
     p5
-    
+
     data<-data1[which(data1$Group=="cindex.test"),]
     p6<-ggplot(data)+aes(x=Mu,y=value,color=method,shape=method)+geom_point(size=2.5, position = position_dodge(0.1))+
       geom_errorbar(aes(ymin=value-se, ymax=value+se), size=0.6,width =.2,lwd=0.3,position=position_dodge(0.1))+
@@ -1866,7 +1828,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"))+
       scale_x_continuous(breaks=mu_vector)+xlab(expression(paste('effect size of gene ',"(",mu,")")))+ylab("Adjusted C-index")
     p6
-    
+
     data<-data1[which(data1$Group=="F.outcome.test"),]
     p7<-ggplot(data)+aes(x=Mu,y=value,color=method,shape=method)+geom_point(size=2.5, position = position_dodge(0.1))+
       geom_errorbar(aes(ymin=value-se, ymax=value+se), size=0.6,width =.2,lwd=0.3,position=position_dodge(0.1))+
@@ -1875,7 +1837,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"))+
       scale_x_continuous(breaks=mu_vector)+xlab(expression(paste('effect size of gene ',"(",mu,")")))+ylab("log-rank test statistics")
     p7
-    
+
     data<-data1[which(data1$Group=="R2.gene.test"),]
     p8<-ggplot(data)+aes(x=Mu,y=value,color=method,shape=method)+geom_point(size=2.5, position = position_dodge(0.1))+
       geom_errorbar(aes(ymin=value-se, ymax=value+se), size=0.6,width =.2,lwd=0.3,position=position_dodge(0.1))+
@@ -1884,7 +1846,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"))+
       scale_x_continuous(breaks=mu_vector)+xlab(expression(paste('effect size of gene ',"(",mu,")")))+ylab(expression(paste(italic(R)^2, "(genes)",sep="")))
     p8
-    
+
     data<-data1[which(data1$Group=="Jaccard"),]
     p9<-ggplot(data)+aes(x=Mu,y=value,color=method,shape=method)+geom_point(size=2.5, position = position_dodge(0.1))+
       geom_errorbar(aes(ymin=value-se, ymax=value+se), size=0.6,width =.2,lwd=0.3,position=position_dodge(0.1))+
@@ -1893,7 +1855,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
             plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"))+
       scale_x_continuous(breaks=mu_vector)+xlab(expression(paste('effect size of gene ',"(",mu,")")))+ylab("Jaccard")
     p9
-    
+
     p10<-as_ggplot(mylegend)+theme(plot.margin = unit(c(5,5,5,5), "cm"))
     p11<-ggplot() +theme_void()
     p12<-ggplot() +theme_void()
@@ -1906,17 +1868,17 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
     # p7 <- annotate_figure(p7,top = text_grob("(B3) outcome prediction",face = "bold", size = 20 ))
     # p8 <- annotate_figure(p8,top = text_grob("(B4) gene separation",face = "bold", size = 20 ))
     # p9 <- annotate_figure(p9,top = text_grob("(A5) feature selection",face = "bold", size = 20 ))
-    # 
-    # plot1<-ggarrange(p1, p3, p9,nrow=1) 
-    # plot2<-ggarrange(p2, p4, p10,nrow=1) 
-    # plot3<-ggarrange(p5, p7, p11,nrow=1) 
-    # plot4<-ggarrange(p6, p8, p12,nrow=1) 
-    # plot.add<-ggarrange(p11, p11, p11,nrow=1) 
-    # 
+    #
+    # plot1<-ggarrange(p1, p3, p9,nrow=1)
+    # plot2<-ggarrange(p2, p4, p10,nrow=1)
+    # plot3<-ggarrange(p5, p7, p11,nrow=1)
+    # plot4<-ggarrange(p6, p8, p12,nrow=1)
+    # plot.add<-ggarrange(p11, p11, p11,nrow=1)
+    #
     # plot_combined<-grid.arrange(plot1,plot2,plot.add,plot3,plot4,
     #                             layout_matrix = cbind(c(1,1,2,2,3,4,4,5,5)))
-    # 
-    # 
+    #
+    #
     # if(SC & tune) {
     #   file.name<-paste("SimII_Figure_c1=",c1_vector_all[ind_c1],".SC.unknown.png",sep="")
     # }
@@ -1930,7 +1892,7 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
     #   file.name<-paste("SimII_Figure_c1=",c1_vector_all[ind_c1],".known.png",sep="")
     # }
     # ggsave(plot_combined,filename = file.name, width = 30, height = 40, units = "cm")
-    
+
     p1 <- annotate_figure(p1,top = text_grob("(C1) Train: clustering accuracy",face = "bold", size = 20 ))
     p2 <- annotate_figure(p2,top = text_grob("(F1) Train: outcome prediction",face = "bold", size = 20 ))
     p3 <- annotate_figure(p3,top = text_grob("(E1) Train: outcome prediction",face = "bold", size = 20 ))
@@ -1940,15 +1902,15 @@ summarySurv_gen=function(SC=TRUE,tune=FALSE,mu_vector=c(0.9,1.2,1.5,1.8),c1_vect
     p7 <- annotate_figure(p7,top = text_grob("(E2) Test: outcome prediction",face = "bold", size = 20 ))
     p8 <- annotate_figure(p8,top = text_grob("(D2) Test: gene separation",face = "bold", size = 20 ))
     p9 <- annotate_figure(p9,top = text_grob("(B) feature selection",face = "bold", size = 20 ))
-    plot1<-ggarrange(p11, p11,p9,nrow=1) 
+    plot1<-ggarrange(p11, p11,p9,nrow=1)
     plot2<-ggarrange(p11, p11,p10,nrow=1)
     plot3<-ggarrange(p1, p4,p3, p2,nrow=1)
     plot4<-ggarrange(p5, p8,p7, p6,nrow=1)
-    
+
     plot_combined<-grid.arrange(plot1,plot2,plot3,plot4,
                                 layout_matrix = cbind(c(1,1,2,2,3,3,3,4,4,4)))
     ggsave(plot_combined,filename = figure.name, width = 50, height = 40, units = "cm")
-    
+
   }
   print("WJL # features:")
   print(num.yujia.matrix.num)

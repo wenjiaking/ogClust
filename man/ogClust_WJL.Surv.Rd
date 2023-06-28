@@ -13,7 +13,7 @@ ogClust_WJL.Surv(
   lambda,
   v_int = NULL,
   pi_int = NULL,
-  K = 3,
+  K = 2,
   max_iter = 200,
   w_outcome = 0.5,
   w_G = 0.5,
@@ -67,4 +67,31 @@ Other three outputs:
 }
 \description{
 ogClust_WJL mehtod to cluster with survival outcome
+}
+\examples{
+\dontrun{
+
+  data('Data.Metabric') #load lung dataset
+
+  # extract gene expression G, covariate X, outcome Y
+  G=Data.Metabric$Expression
+  X=as.matrix(Data.Metabric$covariate[,1])
+  Y=Data.Metabric$OS
+  delta<-Data.Metabric$OS.event
+  Index.Mean<-order(apply(G,2,mean),decreasing = T)
+  G <- G[,Index.Mean[1:(ncol(G)/2)]]
+  Index.Sd<-order(apply(G,2,sd),decreasing = T)
+  G<-G[,Index.Sd[1:(ncol(G)/2)]]
+  G<-scale(G)
+  #initialize cluster centers:
+  mod.kmeans<-kmeans(G,centers = 2,nstart = 50)
+  center<-t(mod.kmeans$centers)
+  s_G<-300
+  w<-0.8
+  w<-(s_G*w)/(s_G*w+1-w)
+  lambda=0.007
+  #implement ogClust_WJL.surv:
+  fit.res=ogClust_WJL.Surv(x=X,G=t(G),y=Y,y.ind=delta,c_center=center,lambda=lambda,
+  v_int=NULL,pi_int=NULL,K=2,max_iter=200,w_outcome=w,w_G=1-w,z_int=NULL)
+}
 }
