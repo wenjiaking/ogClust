@@ -84,10 +84,10 @@ Y<-GSE47460_GPL14550$outcome
 mod.kmeans<-kmeans(G,centers = 3,nstart = 50)
 center<-t(mod.kmeans$centers)
 #input the weight and lambda
-s_G<-200
-w<-0.727
+s_G<-300
+w<-0.7
 w<-(s_G*w)/(s_G*w+1-w)
-lambda<-8
+lambda<-32
 #implement ogClust_WJL
 fit.res = ogClust_WJL(x=as.matrix(X),G=t(G),y=Y,c_center=center,
              lambda=lambda,v_int=NULL,pi_int=NULL,K=3,max_iter=200,w_outcome=w,w_G=1-w,z_int=NULL)

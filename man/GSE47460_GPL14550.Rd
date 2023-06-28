@@ -5,7 +5,7 @@
 \alias{GSE47460_GPL14550}
 \title{Gene expression profiling of chronic lung disease for the Lung Genomics Research Consortium (GSE47460)
 Microarray data from total RNA extracted from whole lung homogenate from subjects undergoing thoracic surgery.
-There are two platforms in this GEO dataset and this data contains the platform GPL14550. We substract COPD and ILD patients in this dataset.}
+There are two platforms in this GEO dataset and this data contains the platform GPL14550. We subtract COPD and ILD patients in this dataset.}
 \format{
 a list of four components.
 \itemize{
@@ -24,6 +24,6 @@ GSE47460_GPL14550
 \description{
 Gene expression profiling of chronic lung disease for the Lung Genomics Research Consortium (GSE47460)
 Microarray data from total RNA extracted from whole lung homogenate from subjects undergoing thoracic surgery.
-There are two platforms in this GEO dataset and this data contains the platform GPL14550. We substract COPD and ILD patients in this dataset.
+There are two platforms in this GEO dataset and this data contains the platform GPL14550. We subtract COPD and ILD patients in this dataset.
 }
 \keyword{datasets}

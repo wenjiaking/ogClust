@@ -42,7 +42,7 @@
 #' @import survival
 #' @examples
 #' \dontrun{
-#'   data('Data.Metabric') #load lung dataset
+#'   data('Data.Metabric') #load dataset
 #'
 #'   # extract gene expression G, covariate X, outcome Y
 #'   G=Data.Metabric$Expression
