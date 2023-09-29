@@ -5,7 +5,7 @@ The R package "ogClust" mainly implements two outcome-guided clustering methods 
 ## Install the pacakge
 
 `library(devtools)` \
-`install_github("wenjiaking/ogClust@master")` \
+`install_github("wenjiaking/ogClust")` \
 `library(ogClust)`
 
 ## ogClust with continuous outcome
