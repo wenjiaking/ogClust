@@ -1,28 +1,24 @@
-#' Title Fit ogClust_GM mixture model embedding the multinomial logistic regression and with survival outcome
+#' Title Fit ogClust_GM mixture model embedding the LDA for gene disease subtyping and with survival outcome
 #'
-#' @param n an integer defines number of samples
 #' @param K an integer defines the number of subgroups
-#' @param np an integer defines the number of covariates
-#' @param NG an integer defines the number of features of omics data
 #' @param lambda the regularization tuning parameter for sparsity
-#' @param alpha the L2 regularization tuning parameter
 #' @param G the matrix for omics data. The rows are samples and columns are features.
 #' @param X the vector of covariates
 #' @param Y the vector of time variable
+#' @param max_iter the maximum number of iterations of EM algorithm. Default value is 200
 #' @param delta a binary indicator of censoring for time-to-event outcome. 0 means censored and 1 means event observed.
-#' @param theta_int a vector of initial values for parameters to estimate
 #' @param dist distribution of the survival time, defualt is \code{"loglogistic"}. The choices are \code{"weibull"},
 #' \code{"exponential"}, \code{"gaussian"}, \code{"logistic"},\code{"lognormal"} and \code{"loglogistic"}.
 #'
-#' @details The ogClust is a unified latent generative model to perform clustering constructed
+#' @details The ogClust_GM.LDA.Surv is a unified latent generative model to perform clustering constructed
 #' from omics data \code{G} with the guidance of outcome \code{Y}, and with covariate \code{X} to account for
 #' the variability that is not related to subgrouping. A modified EM algorithm is applied for
 #' numeric computation such that the liklihood is maximized. A posterior probability is obtain
 #' for each subject belonging to each cluster.
 #'
-#' ogClust method performs feature selection, latent subtype characterization and outcome prediction simultaneously.
-#' We use either LASSO penalty or LASSO penalty plus L2 regularization( \eqn{lambda*(L1 + alpha*L2)})
-#' Parameter \code{lambda} is the penalty tuning parameter, and \code{alpha} tunes the L2 regularization.
+#' Similar to ogClust_GM.Surv, ogClust_GM.LDA.Surv method performs feature selection, latent subtype characterization and outcome prediction simultaneously.
+#' The difference is that ogClust_GM.LDA.Surv embeds the sparse linear discriminant analysis (LDA) to model gene disease subtyping.
+#'
 #' Time variable \code{Y} and censoring indicator \code{delta} together defines a single time-to-event outcome.
 #' We use accelerated-failure time(AFT) model to model time-to-event outcome, \code{dist} defines
 #' the distribution of survival time.
@@ -30,15 +26,12 @@
 #' @return An object with class \code{"ogClust"}
 #' \itemize{
 #'  \item{\code{par}}{ a list of parameter estimates}
-#'  \item{\code{ll}}{likelihood}
-#'  \item{\code{AIC}}{AIC}
-#'  \item{\code{BIC}}{BIC}
 #'  \item{\code{lambda}}{lambda}
 #'  \item{\code{Y_prd}}{ predicted outcome}
 #'  \item{\code{grp_assign}}{ prediced group assignement}
 #' }
 #' @export
-#' @importFrom glmnet glmnet
+#' @import penalizedLDA
 #' @import survival
 #' @examples
 #' \dontrun{
@@ -54,46 +47,34 @@
 #'   Index.Sd<-order(apply(G,2,sd),decreasing = T)
 #'   G<-G[,Index.Sd[1:(ncol(G)/2)]]
 #'   G<-scale(G)
-#'   # number of subjects
-#'   n=nrow(G)
-#'   # number of genes
-#'   NG=ncol(G)
-#'   # number of covariates
-#'   np=ncol(X)
 #'   # number of clusters
 #'   K=2
 #'   # tuning parameter
 #'   lambda=0.007
 #'
-#'   # set initial values
-#'   beta_int = runif(np, 0, 3)
-#'   gamma_int = runif((K - 1) * (NG + 1), 0, 1)
-#'   beta0_int = runif(K, 0, 3)
-#'   sigma2_int = runif(1, 1, 3)
-#'   theta_int = c(beta_int, gamma_int, beta0_int, sigma2_int)
-#'
 #'   # fit ogClust
-#'   fit.res<-ogClust_GM.Surv(n=n, K=K, np=np, NG=NG, lambda=lambda,delta = delta,
-#'   alpha=1, G=G, Y=Y, X=X, theta_int=theta_int)
+#'   fit.res<-ogClust_GM.LDA.Surv(K=K,lambda=lambda,delta = delta, G=G, Y=Y, X=X)
 #'}
 
-
-ogClust_GM.Surv <- function(n, K, np, NG, lambda, alpha, G, Y, X, delta, theta_int, dist = "loglogistic") {
-  G = cbind(1, as.matrix(G))
+ogClust_GM.LDA.Surv <- function(K, lambda, G, Y, X, delta, dist = "loglogistic",max_iter=200) {
   X = as.matrix(X)
-  theta_est = EM.surv(theta_int, lambda = lambda, n = n, G = G, Y = Y, X = X, delta = delta, np = np, K = K, NG = NG, alpha = alpha, dist = dist)$theta
-
+  G = as.matrix(G)
+  n=nrow(G)
+  NG=ncol(G)
+  np=ncol(X)
+  EMout = EM.LDA.surv(lambda = lambda, G = G, Y = Y, X = X, delta = delta, K = K, dist = dist,max_iter=max_iter)
+  theta_est=EMout$theta
   # estimated parameters
   beta_est = theta_est[1:np]
-  gamma_est = theta_est[(np + 1):((K - 1) * (NG + 1) + np)]
-  beta0_est = theta_est[((K - 1) * (NG + 1) + np + 1):((K - 1) * (NG + 1) + np + K)]
-  sigma2_est = theta_est[((K - 1) * (NG + 1) + np + K + 1)]
+  beta0_est = theta_est[(np + 1):(np + K)]
+  sigma2_est = theta_est[(np + K + 1)]
 
-  gamma_est_matrix = matrix(gamma_est, ncol = K - 1, byrow = T)
-  gamma_est_matrix = cbind(gamma_est_matrix, 0)
+  cluster=EMout$label
+  out <- PenalizedLDA(G,cluster,xte=G,lambda=lambda,K=(K-1))
+  PLDAlist=Classify(out$xproj,out$xteproj,cluster)
+  pai_est=PLDAlist$pi_est
+  pai_est[which(is.na(pai_est))]=1
 
-  par_est<-list(beta0=beta0_est, beta=beta_est, sigma2=sigma2_est,gamma=gamma_est_matrix)
-  pai_est = sapply(1:K, function(k) exp(G %*% gamma_est_matrix[, k, drop = F])/rowSums(exp(G %*% gamma_est_matrix)))
   f_est = sapply(1:K, function(x) f_calc(Y1 = Y, X1 = X, beta = beta_est, mu = beta0_est[x], sigma2 = sigma2_est, delta = delta))
   f_est = t(apply(f_est, 1, function(x) x/sum(x)))
   idx = which.max(beta0_est)
@@ -102,45 +83,58 @@ ogClust_GM.Surv <- function(n, K, np, NG, lambda, alpha, G, Y, X, delta, theta_i
   f_est[which(test < 10^-3 | is.na(test)), idx] = 1
   f_est[is.na(f_est)] = 0
 
-  (ll = sum(log(diag(pai_est %*% t(f_est)))))
-
-  # Calculate AIC BIC
-  AIC = 2 * sum(theta_est != 0) - 2 * ll
-  BIC = log(n) * sum(theta_est != 0) - 2 * ll
-
   # prosterior prob
   w_est = sapply(1:K, function(k) (pai_est[, k] * f_est[, k])/diag(pai_est %*% t(f_est)))
   cl.assign <- apply(w_est, 1, which.max)
 
-  # calculate the expected value of Y and R2
-  #Y_prd = apply(sapply(1:K, function(x) pai_est[, x] * (beta0_est[x] + X %*% beta_est)), 1, sum) #soft assignment
   Y_prd = beta0_est[cl.assign] + X %*% beta_est #hard assignment
-  #R2 = 1 - sum((Y - Y_prd)^2)/sum((Y - mean(Y))^2)
 
-  final.res <- list(par=par_est, ll = ll, AIC = AIC, BIC = BIC, lambda = lambda,
+  final.res <- list(par=theta_est, label=cluster, lambda = lambda,
                     Y_prd=Y_prd, grp_assign=cl.assign)
+
   attr(final.res, "class") <- "ogClust"
   return(final.res)
 }
 
 
-EM.surv <- function(theta, lambda, n, G, Y, X, delta, np, K, NG, alpha = 0.5, dist) {
+EM.LDA.surv <- function(lambda, G, Y, X, delta, K, dist,max_iter) {
+
+  np=ncol(X)
+  n=nrow(G)
+  mod.kmeans<-kmeans(G,centers = K,nstart = 50)
+  cluster<-mod.kmeans$cluster
+
+  beta0_int=c()
+  for (k in 1:K) {
+    index1<-which(cluster==k)
+    data1<-data.frame(y=Y[index1],X[index1,])
+    mod1<-lm(y~.,data=data1)
+    mod1<-summary(mod1)
+    beta0_int=c(beta0_int,mod1$coefficients[1,1])
+  }
+
+  data<-data.frame(y=Y,X)
+  mod<-lm(y~.,data=data)
+  mod<-summary(mod)
+  beta_int<-mod$coefficients[2:(np+1),1]
+
+  sigma2_int<-1
+
+  class_label=cluster
+  out <- PenalizedLDA(G,class_label,xte=G,lambda=lambda,K=(K-1))
+  PLDAlist=Classify(out$xproj,out$xteproj,class_label)
+
+  theta= c(beta_int, beta0_int, sigma2_int,as.numeric(t(PLDAlist$mus)))
   #-----------------------------------------------#
   l = 1
   repeat {
     beta_old = theta[1:np]
-    gamma_old = theta[(1 + np):((K - 1) * (NG + 1) + np)]
-
-    miu_old = theta[((K - 1) * (NG + 1) + np + 1):((K - 1) * (NG + 1) + np + K)]
-
-    sigma2_old = theta[((K - 1) * (NG + 1) + np + K + 1):length(theta)]
-
+    miu_old = theta[(np + 1):(np + K)]
+    sigma2_old = theta[(np + K + 1)]
 
     # ==E-STEP==#
-    gamma_old_matrix = matrix(gamma_old, ncol = K - 1, byrow = T)
-    gamma_old_matrix = cbind(gamma_old_matrix, 0)
-    #pai_old = sapply(1:K, function(k) exp(G %*% gamma_old_matrix[, k, drop = F])/rowSums(exp(G %*% gamma_old_matrix)))
-    pai_old = sapply(1:K, function(k) 1/rowSums(exp(sweep(G %*% gamma_old_matrix, 1, G %*% gamma_old_matrix[, k, drop = F]))))
+    pai_old=PLDAlist$pi_est #n by K
+    pai_old[which(is.na(pai_old))]=1
 
     f_old = sapply(1:K, function(x) f_calc(Y1 = Y, X1 = X, beta = beta_old, mu = miu_old[x], sigma2 = sigma2_old, delta = delta))
     f_old = t(apply(f_old, 1, function(x) x/sum(x)))
@@ -158,12 +152,19 @@ EM.surv <- function(theta, lambda, n, G, Y, X, delta, np, K, NG, alpha = 0.5, di
     if(any(apply(w_old,2, function(x) sum(abs(x)))<1e-05)){
       w_old[,apply(w_old,2, function(x) sum(abs(x)))<1e-05]<-1e-05/n
     }
-    fit <- glmnet::glmnet(x = G[, -1], y = w_old, lambda = lambda, family = "multinomial", alpha = alpha, type.multinomial = "grouped")
-    gamma_new_matrix = rbind(t(fit$a0), sapply(1:K, function(x) as.numeric(fit$beta[[x]])))
-    gamma_new_matrix = sapply(1:K, function(x) gamma_new_matrix[, x] - gamma_new_matrix[, K])
-    #}, error = function(e) {
-    #    return(gamma_old_matrix)
-    #})
+
+    label_new=apply(w_old,1,which.max)
+    if (is.list(label_new)) {
+      empty.c=which(sapply(label_new,length)==0)
+      label_new[empty.c]=sample(1:K,length(empty.c),replace =T)
+      label_new=unlist(label_new)
+    }
+    #print(table(label_new))
+    if (length(table(label_new))==K) {
+      class_label=label_new
+      out <- PenalizedLDA(G,class_label,xte=G,lambda=lambda,K=(K-1))
+      PLDAlist=Classify(out$xproj,out$xteproj,class_label)
+    }
 
     if (is.null(colnames(X))) {
       colnames(X) = paste0("X", 1:np)
@@ -186,26 +187,40 @@ EM.surv <- function(theta, lambda, n, G, Y, X, delta, np, K, NG, alpha = 0.5, di
     sigma2_new = fit$scale
     beta_new = fit$coefficients[1:np]
 
-    theta_new = c(beta_new, as.numeric(t(gamma_new_matrix[, -K])), miu_new, sigma2_new)
+    theta_new = c(beta_new, miu_new, sigma2_new,as.numeric(t(PLDAlist$mus)))
     dis = sqrt(sum((theta_new - theta)^2, na.rm = T))
     theta = theta_new
     l = l + 1
-    if (dis < 1 * 10^(-6) | l > 500) {
+    if (dis < 1 * 10^(-6) | l > max_iter) {
       break
     }
   }
-  return(list(theta = theta, w = w_old, l = l))
+  return(list(theta=theta,label=class_label))
 }
 
-#-------------------likelihood--------------------------#
-f_calc = function(Y1, X1, beta, mu, sigma2, delta, K) {
-  Z = log(Y1)
-  X0 = X1 %*% beta
-  mu0 = mu
-  W = (Z - X0 - mu0)/sigma2
-  pdf_calc = function(delta, W, ind) {
-    return((1/sigma2) * (exp(W[ind])/(1 + exp(W[ind]))^2)^(delta[ind]))
+Classify <- function(xtr,xte,ytr,equalpriors=TRUE){ # I introduced unequal priors on 02/22/2010
+  prior <- rep(1/length(unique(ytr)), length(unique(ytr)))
+  if(!equalpriors){
+    for(k in 1:length(unique(ytr))) prior[k] <- mean(ytr==k)
   }
-  res = sapply(1:length(Y1), function(ind) (1/(1 + exp(W[ind])))^(1 - delta[ind]) * pdf_calc(delta, W, ind))
-  return(res)
+  # classify test obs to nearest training centroid.
+  if(is.matrix(xtr) && ncol(xtr)>1){
+    mus <- matrix(0, nrow=ncol(xtr), ncol=length(unique(ytr)))
+    for(k in 1:length(unique(ytr))){
+      mus[,k] <- apply(xtr[ytr==k,], 2, mean)
+    }
+  } else {
+    mus <- matrix(NA, nrow=1, ncol=length(unique(ytr)))
+    for(k in 1:length(unique(ytr))) mus[1,k] <- mean(xtr[ytr==k])
+  }
+  negdists <- diag.disc(t(xte), mus, prior)
+  class_label=apply(negdists,1,which.max)
+  pi_est=exp(negdists)/apply(exp(negdists),1,sum)
+  return(list(class_label=class_label,pi_est=pi_est,mus=mus))
+}
+
+diag.disc <-function(x, centroids, prior) {
+  dd <- t(x) %*% centroids
+  dd0 <- (rep(1, nrow(centroids)) %*% (centroids^2))/2 - log(prior)
+  scale(dd, as.numeric(dd0), FALSE) # this is -.5*||x_i - mu_k||^2+log(pi_k)
 }

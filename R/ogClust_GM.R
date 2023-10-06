@@ -1,4 +1,4 @@
-#' Title Fit ogClust_GM mixture model with continuous outcome
+#' Title Fit ogClust_GM mixture model embedding the multinomial logistic regression and with continuous outcome
 #'
 #' @param n an integer defines number of samples
 #' @param K an integer defines the number of subgroups
@@ -18,13 +18,13 @@
 #' @param tau a single \code{numeric} value. Defines the boundary where the loss function transit
 #' from quadratic to linear if argument \code{robust = "huber"}. Defualt is \code{1.345}.
 #'
-#' @details The ogClust is a unified latent generative model to perform clustering constructed
+#' @details The ogClust_GM is a unified latent generative model to perform clustering constructed
 #' from omics data \code{G} with the guidance of outcome \code{Y}, and with covariate \code{X} to account for
 #' the variability that is not related to subgrouping. A modified EM algorithm is applied for
 #' numeric computation such that the liklihood is maximized. A posterior probability is obtain
 #' for each subject belonging to each cluster.
 #'
-#' ogClust method performs feature selection, latent subtype characterization and outcome prediction simultaneously.
+#' ogClust_GM method performs feature selection, latent subtype characterization and outcome prediction simultaneously.
 #' We use either LASSO penalty or LASSO penalty plus L2 regularization( \eqn{lambda*(L1 + alpha*L2)})
 #' Parameter \code{lambda} is the penalty tuning parameter, and \code{alpha} tunes the L2 regularization. To account for possible
 #' outliers or violation of mixture Gaussian assumption, we incorporate robust

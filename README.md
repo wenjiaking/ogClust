@@ -46,6 +46,9 @@ beta0_int = runif(K, 0, 3)
 sigma2_int = runif(1, 1, 3)
 theta_int = c(beta_int, gamma_int, beta0_int, sigma2_int)
 fit.res<-ogClust_GM(n=n, K=3, np=np, NG=NG, lambda=lambda, alpha=1, G=G, Y=Y, X=X,theta_int=theta_int)
+
+# ogClust_GM method embedding LDA to model gene disease subtyping
+fit.res<-ogClust_GM.LDA(K=3,lambda=lambda, G=G, Y=Y, X=X)
 ```
 
 ### implement ogClust_WJL method
@@ -92,6 +95,9 @@ beta0_int = runif(K, 0, 3)
 sigma2_int = runif(1, 1, 3)
 theta_int = c(beta_int, gamma_int, beta0_int, sigma2_int)
 fit.res<-ogClust_GM.Surv(n=n, K=K, np=np, NG=NG, lambda=lambda,delta = delta, alpha=1, G=G, Y=Y, X=X, theta_int=theta_int)
+
+# ogClust_GM method embedding LDA to model gene disease subtyping
+fit.res<-ogClust_GM.LDA.Surv(K=K,lambda=lambda,delta = delta, G=G, Y=Y, X=X)
 ```
 ### implement ogClust_WJL method
 
