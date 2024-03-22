@@ -230,7 +230,7 @@ res.gen=function(K=3,SC=TRUE,num.sim=50,mu_vector=c(0.9,1.2,1.5,1.8),c1_vector_a
             X.train1<-X.train[(1:nrow(G.train))[-ind_sample],]
             Y.train1<-Y.train[(1:nrow(G.train))[-ind_sample]]
 
-            mod<-ogclust_con_Yujia(x=X.train1,G=t(G.train11),y=Y.train1,c_center=center,lambda=lambda,v_int=NULL,pi_int=NULL,K=3,max_iter=200,w_outcome=w,w_G=1-w,z_int=NULL)
+            mod<-ogclust_con_Yujia(x=X.train1,G=t(G.train11),y=Y.train1,c_center=center,lambda=lambda_vector1[j],v_int=NULL,pi_int=NULL,K=3,max_iter=200,w_outcome=w,w_G=1-w,z_int=NULL)
 
             res1<-predict_test(mod,K=K,D.test=as.matrix(G.test11),X1=as.matrix(X.test1),p=ncol(G.test11))
 
